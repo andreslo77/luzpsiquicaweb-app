@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.60.0",
     "agora-rtc-sdk-ng": "^4.24.3",
     "jwt-decode": "^4.0.0",
     "react": "^19.2.4",
