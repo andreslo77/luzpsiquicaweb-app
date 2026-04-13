@@ -16,7 +16,6 @@ import CallHistoryWeb from "./screens/CallHistoryWeb.jsx";
 import BuyMinutesWeb from "./screens/BuyMinutesWeb.jsx";
 import DeleteAccountScreenWeb from "./screens/DeleteAccountScreenWeb.jsx";
 
-// ✅ NUEVAS SCREENS LEGALES WEB
 import LegalHomeWeb from "./screens/LegalHomeWeb.jsx";
 import LegalNormsWeb from "./screens/LegalNormsWeb.jsx";
 import LegalOperationalWeb from "./screens/LegalOperationalWeb.jsx";
@@ -26,22 +25,7 @@ function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuthWeb();
 
   if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#EFEAFB",
-          color: "#311B92",
-          fontSize: "18px",
-          fontWeight: "700",
-        }}
-      >
-        Cargando...
-      </div>
-    );
+    return <div style={{ padding: 40 }}>Cargando...</div>;
   }
 
   if (!isAuthenticated) {
@@ -57,6 +41,11 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to="/home" replace />} />
 
       <Route path="/home" element={<ClientHomeWeb />} />
+
+      {/* 🔥 NUEVA RUTA SEO */}
+      <Route path="/psychic/:slug" element={<PsychicProfileWeb />} />
+
+      {/* 🔁 Ruta vieja (compatibilidad) */}
       <Route path="/psychic-profile" element={<PsychicProfileWeb />} />
 
       <Route path="/login" element={<LoginScreenWeb />} />
@@ -64,7 +53,6 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPasswordScreenWeb />} />
       <Route path="/psychic-comments" element={<PsychicCommentsScreenWeb />} />
 
-      {/* ✅ RUTAS LEGALES WEB */}
       <Route path="/legal" element={<LegalHomeWeb />} />
       <Route path="/legal/normas" element={<LegalNormsWeb />} />
       <Route path="/legal/operativo" element={<LegalOperationalWeb />} />
@@ -128,7 +116,7 @@ function AppRoutes() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <LanguageProvider>
       <AuthProviderWeb>
@@ -139,5 +127,3 @@ function App() {
     </LanguageProvider>
   );
 }
-
-export default App;

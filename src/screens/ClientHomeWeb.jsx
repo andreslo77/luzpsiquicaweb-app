@@ -139,6 +139,29 @@ function sortPsychics(arr) {
   });
 }
 
+function slugifyPsychicName(name) {
+  return String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function buildPsychicSeoPath(psychic) {
+  const psychicId = String(psychic?._id || psychic?.id || "").trim();
+  const psychicName = getPsychicDisplayName(psychic);
+  const slugBase = slugifyPsychicName(psychicName) || "psiquico";
+
+  if (!psychicId) {
+    return `/psychic/${slugBase}`;
+  }
+
+  return `/psychic/${slugBase}-${psychicId}`;
+}
+
 export default function ClientHomeWeb() {
   const navigate = useNavigate();
   const { user, token, logout, refreshMe, isAuthenticated } = useAuthWeb();
@@ -229,18 +252,24 @@ export default function ClientHomeWeb() {
     });
   };
 
+  function slugifyPsychicName(name) {
+    return String(name || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .replace(/-{2,}/g, "-");
+  }
+
   const handleOpenProfile = (psychic) => {
-    const psychicId = String(psychic?._id || psychic?.id || "");
     const psychicName = getPsychicDisplayName(psychic);
+    const slug = slugifyPsychicName(psychicName);
 
-    if (!psychicId) return;
+    if (!slug) return;
 
-    const params = new URLSearchParams({
-      psychicId,
-      psychicName,
-    });
-
-    navigate(`/psychic-profile?${params.toString()}`);
+    navigate(`/psychic/${slug}`);
   };
 
   const requireLogin = () => {

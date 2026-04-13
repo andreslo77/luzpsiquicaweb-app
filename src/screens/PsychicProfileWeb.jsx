@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../config/env.web.js";
 import { useAuthWeb } from "../context/AuthContextWeb.jsx";
 import { useLang } from "../context/LanguageContext.jsx";
@@ -7,6 +7,14 @@ import AppLayoutWeb from "../components/layout/AppLayoutWeb.jsx";
 
 const RAW_API_URL = API_BASE_URL;
 const PSYCHIC_MINUTE_RATE_LABEL = "US$1.25/min";
+
+function normalizeName(str) {
+  return String(str || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 function normalizeApiBase(url) {
   if (!url) return null;
@@ -175,6 +183,17 @@ function stripInternalBio(text) {
     .trim();
 }
 
+function slugifyPsychicName(name) {
+  return String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
 function StarsRow({ value, align = "right", size = 16 }) {
   const v = clampStars(value);
   const rounded = Math.round(v);
@@ -208,6 +227,7 @@ function StarsRow({ value, align = "right", size = 16 }) {
 export default function PsychicProfileWeb() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { slug = "" } = useParams();
   const { token, refreshMe } = useAuthWeb();
   const { t } = useLang();
 
@@ -216,16 +236,20 @@ export default function PsychicProfileWeb() {
     [location.search]
   );
 
-  const [psychic, setPsychic] = useState(routePsychicId ? { _id: routePsychicId } : null);
+  const initialPsychicId = routePsychicId || "";
+  const initialPsychicName = routePsychicName || "";
+
+  const [psychicId, setPsychicId] = useState(routePsychicId || "");
+  const [psychic, setPsychic] = useState(initialPsychicId ? { _id: initialPsychicId } : null);
+
   const [loading, setLoading] = useState(true);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [startingCall, setStartingCall] = useState(false);
 
-  const psychicId = String(psychic?._id || psychic?.id || routePsychicId || "");
   const displayName =
     getPsychicDisplayName(psychic, t("psych_profile_psychic_fallback")) ||
-    routePsychicName ||
+    initialPsychicName ||
     t("psych_profile_psychic_fallback");
 
   const photoUrl = useMemo(() => resolvePhotoUrl(psychic?.photo), [psychic?.photo]);
@@ -290,6 +314,32 @@ export default function PsychicProfileWeb() {
     const hasOther = tools.includes("Otros") && String(toolsOtherText || "").trim();
     return hasOther ? `${base}${base ? " · " : ""}${String(toolsOtherText).trim()}` : base;
   }, [tools, toolsOtherText]);
+
+    useEffect(() => {
+    const resolvePsychicBySlug = async () => {
+      try {
+        if (!slug || routePsychicId) return;
+
+        const res = await fetch(`${API_BASE_URL}/users/psychics`);
+        const data = await res.json().catch(() => []);
+
+        if (!Array.isArray(data)) return;
+
+        const found = data.find((p) => {
+          const name = p?.psychicName || p?.name || "";
+          return slugifyPsychicName(name) === slugifyPsychicName(slug);
+        });
+
+        if (found?._id) {
+          setPsychicId(String(found._id));
+        }
+      } catch (err) {
+        console.error("[PsychicProfileWeb] resolvePsychicBySlug error:", err);
+      }
+    };
+
+    resolvePsychicBySlug();
+  }, [slug, routePsychicId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -358,7 +408,7 @@ export default function PsychicProfileWeb() {
         const list = Array.isArray(data?.reviews) ? data.reviews : [];
 
         if (!cancelled) setReviews(list);
-      } catch (err) {
+      } catch {
         if (!cancelled) setReviews([]);
       } finally {
         if (!cancelled) setReviewsLoading(false);
@@ -371,6 +421,55 @@ export default function PsychicProfileWeb() {
       cancelled = true;
     };
   }, [psychicId, token, t]);
+
+  useEffect(() => {
+    if (!psychicId) return;
+    if (!psychic?._id && !psychic?.id) return;
+
+    const expectedPath = `/psychic/${slugifyPsychicName(displayName)}`;
+
+    if (!expectedPath) return;
+    if (location.pathname === expectedPath && !location.search) return;
+
+    if (location.pathname === "/psychic-profile" || location.search) {
+      navigate(expectedPath, { replace: true });
+    }
+  }, [psychic, psychicId, displayName, location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    const titleName = displayName || "Psíquico";
+    document.title = `${titleName} | Luz Psíquica`;
+
+    const rawText = stripInternalBio(
+      psychic?.tagline || psychic?.bio || psychic?.about || ""
+    );
+    const description = rawText
+      ? rawText.slice(0, 160)
+      : `${titleName} en Luz Psíquica. Perfil público, disponibilidad, experiencia y comentarios.`;
+
+    let metaDescription = document.querySelector('meta[name="description"]');
+    if (!metaDescription) {
+      metaDescription = document.createElement("meta");
+      metaDescription.setAttribute("name", "description");
+      document.head.appendChild(metaDescription);
+    }
+    metaDescription.setAttribute("content", description);
+
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.setAttribute("rel", "canonical");
+      document.head.appendChild(canonical);
+    }
+
+    const canonicalPath = `/psychic/${slugifyPsychicName(displayName)}`;
+    const canonicalUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}${canonicalPath}`
+        : canonicalPath;
+
+    canonical.setAttribute("href", canonicalUrl);
+  }, [psychic, displayName]);
 
   const featuredReview = useMemo(() => {
     if (!Array.isArray(reviews) || reviews.length === 0) return null;
@@ -507,7 +606,7 @@ export default function PsychicProfileWeb() {
     }
   };
 
-  if (!routePsychicId && !psychicId) {
+  if (!initialPsychicId && !psychicId) {
     return (
       <AppLayoutWeb title={t("psych_profile_header_title")} showBack={true} backTo="/home">
         <div style={styles.center}>
