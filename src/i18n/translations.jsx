@@ -124,6 +124,8 @@ export const translations = {
     callhist_title_with_name: 'Historial de llamadas',
 
     callhist_loading: 'Cargando historial…',
+    callhist_back_dashboard: 'Volver al panel',
+    callhist_refresh: 'Actualizar historial',
     callhist_empty: 'Aún no tienes sesiones registradas.',
     callhist_not_enough_data: 'Aún no hay datos suficientes.',
 
@@ -1245,6 +1247,8 @@ export const translations = {
     callhist_title_with_name: 'Call history',
 
     callhist_loading: 'Loading history…',
+    callhist_back_dashboard: 'Back to dashboard',
+    callhist_refresh: 'Refresh history',
     callhist_empty: 'You don’t have any recorded sessions yet.',
     callhist_not_enough_data: 'Not enough data yet.',
 
@@ -2365,6 +2369,8 @@ export const translations = {
     callhist_title_with_name: 'Historique des appels',
 
     callhist_loading: 'Chargement de l’historique…',
+    callhist_back_dashboard: 'Retour au tableau de bord',
+    callhist_refresh: 'Actualiser l’historique',
     callhist_empty: 'Vous n’avez pas encore de sessions enregistrées.',
     callhist_not_enough_data: 'Pas encore assez de données.',
 
@@ -3485,6 +3491,8 @@ export const translations = {
     callhist_title_with_name: 'Anrufverlauf',
 
     callhist_loading: 'Verlauf wird geladen…',
+    callhist_back_dashboard: 'Zurück zum Dashboard',
+    callhist_refresh: 'Verlauf aktualisieren',
     callhist_empty: 'Du hast noch keine Sitzungen gespeichert.',
     callhist_not_enough_data: 'Noch nicht genug Daten.',
 
@@ -4623,6 +4631,8 @@ export const translations = {
     callhist_title_with_name: 'Histórico de chamadas',
 
     callhist_loading: 'Carregando histórico…',
+    callhist_back_dashboard: 'Voltar ao painel',
+    callhist_refresh: 'Atualizar histórico',
     callhist_empty: 'Você ainda não tem sessões registradas.',
     callhist_not_enough_data: 'Ainda não há dados suficientes.',
 
@@ -5743,6 +5753,8 @@ export const translations = {
     callhist_title_with_name: 'Cronologia chiamate',
 
     callhist_loading: 'Caricamento cronologia…',
+    callhist_back_dashboard: 'Torna alla dashboard',
+    callhist_refresh: 'Aggiorna cronologia',
     callhist_empty: 'Non hai ancora sessioni registrate.',
     callhist_not_enough_data: 'Non ci sono ancora dati sufficienti.',
 
