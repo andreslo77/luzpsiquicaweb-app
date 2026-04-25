@@ -1,3 +1,4 @@
+// screens/ClientHomeWeb.jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config/env.web.js";
@@ -150,18 +151,6 @@ function slugifyPsychicName(name) {
     .replace(/-{2,}/g, "-");
 }
 
-function buildPsychicSeoPath(psychic) {
-  const psychicId = String(psychic?._id || psychic?.id || "").trim();
-  const psychicName = getPsychicDisplayName(psychic);
-  const slugBase = slugifyPsychicName(psychicName) || "psiquico";
-
-  if (!psychicId) {
-    return `/psychic/${slugBase}`;
-  }
-
-  return `/psychic/${slugBase}-${psychicId}`;
-}
-
 export default function ClientHomeWeb() {
   const navigate = useNavigate();
   const { user, token, logout, refreshMe, isAuthenticated } = useAuthWeb();
@@ -252,23 +241,11 @@ export default function ClientHomeWeb() {
     });
   };
 
-  function slugifyPsychicName(name) {
-    return String(name || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .replace(/-{2,}/g, "-");
-  }
-
   const handleOpenProfile = (psychic) => {
     const psychicName = getPsychicDisplayName(psychic);
     const slug = slugifyPsychicName(psychicName);
 
     if (!slug) return;
-
     navigate(`/psychic/${slug}`);
   };
 
@@ -473,46 +450,54 @@ export default function ClientHomeWeb() {
                             : t("clienthome_psychic_not_available")}
                       </div>
 
+                      {busy ? (
+                        <div style={styles.occupiedPill}>
+                          {t("clienthome_busy_in_call")}
+                        </div>
+                      ) : null}
+
                       <p style={styles.bio}>
                         {pickSnippet(item, t("clienthome_snippet_fallback"))}
                       </p>
 
                       <div style={styles.actionsWrap}>
-                        <div style={styles.primaryActionsRow}>
-                          <button
-                            style={{
-                              ...styles.callBtn,
-                              ...styles.primaryActionBtn,
-                              ...(!availableCall ? styles.callBtnDisabled : {}),
-                            }}
-                            disabled={busyAction === `call:${actionKeyBase}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCall(item);
-                            }}
-                          >
-                            {busyAction === `call:${actionKeyBase}`
-                              ? "Procesando..."
-                              : t("clienthome_call_now")}
-                          </button>
+                        <button
+                          style={{
+                            ...styles.callBtn,
+                            ...(!availableCall ? styles.callBtnDisabled : {}),
+                          }}
+                          disabled={!availableCall || busyAction === `call:${actionKeyBase}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCall(item);
+                          }}
+                        >
+                          {busyAction === `call:${actionKeyBase}`
+                            ? "Procesando..."
+                            : availableCall
+                              ? t("clienthome_call_now")
+                              : busy
+                                ? t("clienthome_psychic_busy_label")
+                                : t("clienthome_psychic_not_available")}
+                        </button>
 
-                          <button
-                            style={{
-                              ...styles.chatBtn,
-                              ...styles.primaryActionBtn,
-                              ...(!availableChat ? styles.chatBtnDisabled : {}),
-                            }}
-                            disabled={busyAction === `chat:${actionKeyBase}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleChat(item);
-                            }}
-                          >
-                            {busyAction === `chat:${actionKeyBase}`
-                              ? "Procesando..."
-                              : t("clienthome_chat")}
-                          </button>
-                        </div>
+                        <button
+                          style={{
+                            ...styles.chatBtn,
+                            ...(!availableChat ? styles.chatBtnDisabled : {}),
+                          }}
+                          disabled={!availableChat || busyAction === `chat:${actionKeyBase}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleChat(item);
+                          }}
+                        >
+                          {busyAction === `chat:${actionKeyBase}`
+                            ? "Procesando..."
+                            : availableChat
+                              ? t("clienthome_chat")
+                              : t("clienthome_psychic_not_available")}
+                        </button>
 
                         <button
                           style={styles.commentsBtn}
@@ -739,6 +724,18 @@ const styles = {
     color: "#C62828",
   },
 
+  occupiedPill: {
+    display: "inline-flex",
+    alignSelf: "flex-start",
+    marginTop: "8px",
+    padding: "6px 12px",
+    background: "#D32F2F",
+    color: "#FFFFFF",
+    borderRadius: "10px",
+    fontWeight: 700,
+    fontSize: "12px",
+  },
+
   bio: {
     color: "#555",
     marginTop: "10px",
@@ -748,28 +745,11 @@ const styles = {
   },
 
   actionsWrap: {
-    width: "100%",
     display: "flex",
     flexDirection: "column",
     alignItems: "flex-start",
-    gap: "8px",
+    gap: "6px",
     marginTop: "4px",
-  },
-
-  primaryActionsRow: {
-    display: "flex",
-    alignItems: "stretch",
-    gap: "8px",
-    flexWrap: "wrap",
-    width: "100%",
-  },
-
-  primaryActionBtn: {
-    minHeight: "44px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxSizing: "border-box",
   },
 
   callBtn: {
@@ -782,7 +762,6 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
     fontSize: "14px",
-    flex: "0 0 auto",
   },
 
   callBtnDisabled: {
@@ -792,7 +771,7 @@ const styles = {
 
   chatBtn: {
     alignSelf: "flex-start",
-    padding: "8px 14px",
+    padding: "6px 12px",
     background: "#FFFFFF",
     color: "#4B6BFB",
     borderRadius: "10px",
@@ -800,18 +779,18 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
     fontSize: "14px",
-    flex: "0 0 auto",
   },
 
   chatBtnDisabled: {
     border: "1px solid #B0BEC5",
     color: "#90A4AE",
     cursor: "not-allowed",
+    opacity: 0.55,
   },
 
   commentsBtn: {
     alignSelf: "flex-start",
-    padding: "8px 14px",
+    padding: "6px 12px",
     background: "#EDE7F6",
     color: "#4A148C",
     borderRadius: "10px",
@@ -819,9 +798,5 @@ const styles = {
     fontWeight: 700,
     cursor: "pointer",
     fontSize: "14px",
-    minHeight: "44px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
   },
 };

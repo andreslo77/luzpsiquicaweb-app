@@ -78,6 +78,14 @@ export const translations = {
     buy_minutes_pkg_minutes: 'minutos',
     buy_minutes_tap_to_pay: 'Toca para iniciar pago en PayPal',
 
+    buy_minutes_notice_title: 'Aviso importante',
+    buy_minutes_no_refund_notice: 'Los minutos adquiridos no son reembolsables. En caso de que el usuario decida dejar de utilizar la aplicación, los minutos no consumidos no podrán ser reintegrados ni transferidos.',
+
+    buy_minutes_secure_payment_title: "Compra segura con PayPal",
+    buy_minutes_secure_payment_body: "Luz Psíquica no solicita, almacena ni procesa datos de tarjetas, cuentas bancarias ni información financiera sensible. El pago se realiza directamente a través de PayPal, bajo sus propios protocolos de seguridad.",
+    buy_minutes_secure_payment_footer: "Tus datos financieros no son compartidos con Luz Psíquica.",
+
+
     session_expired: 'Tu sesión expiró. Inicia sesión de nuevo.',
     paypal_approve_url_missing: 'PayPal no devolvió la URL de aprobación.',
 
@@ -1201,6 +1209,13 @@ export const translations = {
     buy_minutes_pkg_minutes: 'minutes',
     buy_minutes_tap_to_pay: 'Tap to start PayPal payment',
 
+    buy_minutes_notice_title: 'Important notice',
+    buy_minutes_no_refund_notice: 'Purchased minutes are non-refundable. If the user decides to stop using the application, any unused minutes cannot be refunded or transferred.',
+
+    buy_minutes_secure_payment_title: "Secure purchase with PayPal",
+    buy_minutes_secure_payment_body: "Luz Psíquica does not request, store, or process card details, bank account information, or sensitive financial data. Payment is made directly through PayPal, under its own security protocols.",
+    buy_minutes_secure_payment_footer: "Your financial data is not shared with Luz Psíquica.",    
+
     session_expired: 'Your session has expired. Please log in again.',
     paypal_approve_url_missing: 'PayPal did not return an approval URL.',
 
@@ -2322,6 +2337,13 @@ export const translations = {
     buy_minutes_cancel: 'Annuler',
     buy_minutes_pkg_minutes: 'minutes',
     buy_minutes_tap_to_pay: 'Touchez pour lancer le paiement PayPal',
+
+    buy_minutes_notice_title: 'Avis important',
+    buy_minutes_no_refund_notice: 'Les minutes achetées ne sont pas remboursables. Si l’utilisateur décide de ne plus utiliser l’application, les minutes non consommées ne pourront être ni remboursées ni transférées.',
+
+    buy_minutes_secure_payment_title: "Achat sécurisé avec PayPal",
+    buy_minutes_secure_payment_body: "Luz Psíquica ne demande, ne stocke ni ne traite les données de carte, les informations de compte bancaire ou toute information financière sensible. Le paiement est effectué directement via PayPal, selon ses propres protocoles de sécurité.",
+    buy_minutes_secure_payment_footer: "Vos données financières ne sont pas partagées avec Luz Psíquica.",
 
     session_expired: 'Votre session a expiré. Veuillez vous reconnecter.',
     paypal_approve_url_missing: "PayPal n'a pas renvoyé l'URL d'approbation.",
@@ -3445,6 +3467,13 @@ export const translations = {
     buy_minutes_pkg_minutes: 'Minuten',
     buy_minutes_tap_to_pay: 'Tippe, um PayPal-Zahlung zu starten',
 
+    buy_minutes_notice_title: 'Wichtiger Hinweis',
+    buy_minutes_no_refund_notice: 'Gekaufte Minuten sind nicht erstattungsfähig. Wenn der Nutzer die Anwendung nicht mehr verwendet, können nicht verbrauchte Minuten weder zurückerstattet noch übertragen werden.',
+
+    buy_minutes_secure_payment_title: "Sicherer Kauf mit PayPal",
+    buy_minutes_secure_payment_body: "Luz Psíquica fordert keine Karteninformationen, Bankkontodaten oder sensiblen Finanzdaten an, speichert oder verarbeitet diese nicht. Die Zahlung erfolgt direkt über PayPal nach dessen eigenen Sicherheitsprotokollen.",
+    buy_minutes_secure_payment_footer: "Ihre Finanzdaten werden nicht mit Luz Psíquica geteilt.",
+
     session_expired: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
     paypal_approve_url_missing: 'PayPal hat keine Genehmigungs-URL zurückgegeben.',
 
@@ -4566,6 +4595,13 @@ export const translations = {
     buy_minutes_cancel: 'Cancelar',
     buy_minutes_pkg_minutes: 'minutos',
     buy_minutes_tap_to_pay: 'Toque para iniciar o pagamento no PayPal',
+
+    buy_minutes_notice_title: 'Aviso importante',
+    buy_minutes_no_refund_notice: 'Os minutos adquiridos não são reembolsáveis. Caso o usuário decida deixar de utilizar o aplicativo, os minutos não consumidos não poderão ser reembolsados nem transferidos.',
+
+    buy_minutes_secure_payment_title: "Compra segura com PayPal",
+    buy_minutes_secure_payment_body: "A Luz Psíquica não solicita, armazena nem processa dados de cartões, contas bancárias ou informações financeiras sensíveis. O pagamento é realizado diretamente por meio do PayPal, sob seus próprios protocolos de segurança.",
+    buy_minutes_secure_payment_footer: "Seus dados financeiros não são compartilhados com a Luz Psíquica.",
 
     session_expired: 'Sua sessão expirou. Faça login novamente.',
     paypal_approve_url_missing: 'O PayPal não retornou a URL de aprovação.',
@@ -5706,6 +5742,13 @@ export const translations = {
     buy_minutes_cancel: 'Annulla',
     buy_minutes_pkg_minutes: 'minuti',
     buy_minutes_tap_to_pay: 'Tocca per avviare il pagamento PayPal',
+
+    buy_minutes_notice_title: 'Avviso importante',
+    buy_minutes_no_refund_notice: 'I minuti acquistati non sono rimborsabili. Se l’utente decide di non utilizzare più l’applicazione, i minuti non consumati non potranno essere né rimborsati né trasferiti.',
+
+    buy_minutes_secure_payment_title: "Acquisto sicuro con PayPal",
+    buy_minutes_secure_payment_body: "Luz Psíquica non richiede, archivia né tratta dati di carte, conti bancari o informazioni finanziarie sensibili. Il pagamento viene effettuato direttamente tramite PayPal, secondo i propri protocolli di sicurezza.",
+    buy_minutes_secure_payment_footer: "I tuoi dati finanziari non vengono condivisi con Luz Psíquica.",
 
     session_expired: 'La tua sessione è scaduta. Accedi nuovamente.',
     paypal_approve_url_missing: 'PayPal non ha restituito l’URL di approvazione.',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "../context/LanguageContext.jsx";
 import AppLayoutWeb from "../components/layout/AppLayoutWeb.jsx";
 import { API_BASE_URL } from "../config/env.web.js";
@@ -9,8 +9,7 @@ function normalizeApiBase(url) {
   if (!url) return null;
   const base = String(url).trim().replace(/\/+$/, "");
   if (!base) return null;
-  if (base.endsWith("/api")) return base;
-  return `${base}/api`;
+  return base.endsWith("/api") ? base : `${base}/api`;
 }
 
 const API_URL = normalizeApiBase(RAW_API_URL);
@@ -23,7 +22,7 @@ const PACKAGES = [
 ];
 
 function getDiscountRateForMinutes(minutes) {
-  if (minutes >= 200) return 0.10;
+  if (minutes >= 200) return 0.1;
   if (minutes >= 100) return 0.06;
   if (minutes >= 50) return 0.03;
   return 0.0;
@@ -33,13 +32,8 @@ function formatDiscountLabel(template, pct) {
   const tpl = String(template ?? "").trim();
   const safeTpl = tpl.length ? tpl : "Descuento: {{pct}}%";
 
-  if (safeTpl.includes("{{pct}}")) {
-    return safeTpl.replaceAll("{{pct}}", String(pct));
-  }
-
-  if (safeTpl.includes("%")) {
-    return safeTpl.replace("%", `${pct}%`);
-  }
+  if (safeTpl.includes("{{pct}}")) return safeTpl.replaceAll("{{pct}}", String(pct));
+  if (safeTpl.includes("%")) return safeTpl.replace("%", `${pct}%`);
 
   return `${safeTpl} ${pct}%`;
 }
@@ -67,6 +61,41 @@ function formatMinutesValue(value, lang) {
   }
 }
 
+function extractMinutesFromMeResponse(data) {
+  const candidates = [
+    data?.minutes,
+    data?.user?.minutes,
+    data?.data?.minutes,
+    data?.profile?.minutes,
+  ];
+
+  for (const value of candidates) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+
+  return 0;
+}
+
+function getAuthToken() {
+  return (
+    localStorage.getItem("auth_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("accessToken") ||
+    null
+  );
+}
+
+function extractOrderIdFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("token") || params.get("orderId") || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function BuyMinutesWeb() {
   const { t, lang } = useLang();
 
@@ -74,6 +103,11 @@ export default function BuyMinutesWeb() {
   const [loading, setLoading] = useState(true);
   const [buyingId, setBuyingId] = useState(null);
   const [pendingOrder, setPendingOrder] = useState(null);
+  const [capturing, setCapturing] = useState(false);
+
+  const lastCapturedOrderRef = useRef(null);
+
+  const isPayPalPending = useMemo(() => !!pendingOrder?.orderId, [pendingOrder]);
 
   const formatDiscountLegend = (minutes) => {
     const pct = Math.round(getDiscountRateForMinutes(minutes) * 100);
@@ -81,38 +115,26 @@ export default function BuyMinutesWeb() {
   };
 
   const loadMinutes = async () => {
-    try {
-      const token =
-        localStorage.getItem("token") || localStorage.getItem("auth_token");
+    if (!API_URL) throw new Error(t("err_no_config"));
 
-      if (!token) throw new Error(t("err_not_auth"));
+    const token = getAuthToken();
+    if (!token) throw new Error(t("err_not_auth"));
 
-      const res = await fetch(`${API_URL}/users/me`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
+    const res = await fetch(`${API_URL}/users/me`, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || t("err_load_minutes"));
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.message || t("err_load_minutes"));
 
-      setCurrentMinutes(Number(data.minutes ?? 0));
-    } catch (err) {
-      console.log("[BuyMinutesWeb] loadMinutes error:", err);
-    } finally {
-      setLoading(false);
-    }
+    setCurrentMinutes(extractMinutesFromMeResponse(data));
   };
 
-  useEffect(() => {
-    loadMinutes();
-  }, []);
-
   const createPaypalOrder = async (minutes) => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-
+    const token = getAuthToken();
     if (!token) throw new Error(t("err_not_auth"));
 
     const res = await fetch(`${API_URL}/payments/create-order`, {
@@ -129,9 +151,7 @@ export default function BuyMinutesWeb() {
     console.log("[BuyMinutesWeb][create-order] status:", res.status);
     console.log("[BuyMinutesWeb][create-order] response:", data);
 
-    if (!res.ok) {
-      throw new Error(data?.message || t("err_create_order"));
-    }
+    if (!res.ok) throw new Error(data?.message || t("err_create_order"));
 
     const normalizedOrderId =
       data?.orderId ||
@@ -145,12 +165,12 @@ export default function BuyMinutesWeb() {
       data?.approvalUrl ||
       data?.approve_url ||
       data?.approveLink ||
-      data?.links?.find?.((l) => l?.rel === "approve")?.href ||
-      data?.result?.links?.find?.((l) => l?.rel === "approve")?.href;
+      data?.links?.find?.((l) => l?.rel === "approve" || l?.rel === "payer-action")?.href ||
+      data?.result?.links?.find?.((l) => l?.rel === "approve" || l?.rel === "payer-action")?.href;
 
     if (!normalizedOrderId || !normalizedApproveUrl) {
       throw new Error(
-        "Respuesta inválida creando la orden (no se encontró orderId / approveUrl en la respuesta)."
+        "Respuesta inválida creando la orden. No se encontró orderId / approveUrl."
       );
     }
 
@@ -161,14 +181,123 @@ export default function BuyMinutesWeb() {
     };
   };
 
+  const capturePaypalOrder = async (orderId) => {
+    const token = getAuthToken();
+    if (!token) throw new Error(t("err_not_auth"));
+
+    const res = await fetch(`${API_URL}/payments/capture`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ orderId }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (res.status === 409) return { __conflict409: true, ...data };
+    if (!res.ok) throw new Error(data?.message || t("err_capture_payment"));
+
+    return data;
+  };
+
+  const finalizeAfterCapture = async (result) => {
+    const nextMinutes = Number(result?.newMinutes);
+
+    if (Number.isFinite(nextMinutes)) {
+      setCurrentMinutes(nextMinutes);
+    } else {
+      await loadMinutes();
+    }
+
+    setPendingOrder(null);
+    localStorage.removeItem("lp_pending_paypal_order");
+
+    window.alert(
+      `${t("purchase_success_title")}\n\n${String(t("purchase_success_body")).replaceAll(
+        "{{added}}",
+        String(result?.addedMinutes ?? "—")
+      )}`
+    );
+  };
+
+  const handleCapture = async (orderId) => {
+    if (!orderId) return;
+    if (lastCapturedOrderRef.current === orderId) return;
+
+    try {
+      setCapturing(true);
+      lastCapturedOrderRef.current = orderId;
+
+      const result = await capturePaypalOrder(orderId);
+
+      if (result?.__conflict409) {
+        await loadMinutes();
+        window.alert(result?.message || t("buy_minutes_return_hint"));
+        return;
+      }
+
+      await finalizeAfterCapture(result);
+    } catch (err) {
+      console.log("[BuyMinutesWeb] capture error:", err);
+      window.alert(err?.message || t("err_capture_payment"));
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await loadMinutes();
+      } catch (err) {
+        console.log("[BuyMinutesWeb] loadMinutes error:", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("lp_pending_paypal_order");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.orderId) setPendingOrder(parsed);
+      }
+    } catch {
+      // noop
+    }
+  }, []);
+
+  useEffect(() => {
+    const orderIdFromUrl = extractOrderIdFromUrl();
+
+    if (orderIdFromUrl) {
+      handleCapture(orderIdFromUrl);
+
+      try {
+        const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+      } catch {
+        // noop
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleBuy = async (pkg) => {
     try {
       if (!API_URL) throw new Error(t("err_no_config"));
 
       setBuyingId(pkg.id);
+      lastCapturedOrderRef.current = null;
 
       const order = await createPaypalOrder(pkg.minutes);
+
       setPendingOrder(order);
+      localStorage.setItem("lp_pending_paypal_order", JSON.stringify(order));
 
       window.alert(t("paypal_continue_body"));
       window.location.href = order.approveUrl;
@@ -176,9 +305,16 @@ export default function BuyMinutesWeb() {
       console.log("[BuyMinutesWeb] handleBuy error:", err);
       window.alert(err?.message || "No se pudo iniciar la compra.");
       setPendingOrder(null);
+      localStorage.removeItem("lp_pending_paypal_order");
     } finally {
       setBuyingId(null);
     }
+  };
+
+  const handleCaptureFallback = async () => {
+    const orderId = pendingOrder?.orderId;
+    if (!orderId) return;
+    await handleCapture(orderId);
   };
 
   return (
@@ -208,7 +344,21 @@ export default function BuyMinutesWeb() {
           )}
         </div>
 
-        {!!pendingOrder?.orderId && (
+        <div style={styles.securePaymentCard}>
+          <div style={styles.securePaymentTitle}>
+            {t("buy_minutes_secure_payment_title")}
+          </div>
+
+          <div style={styles.securePaymentBody}>
+            {t("buy_minutes_secure_payment_body")}
+          </div>
+
+          <div style={styles.securePaymentFooter}>
+            🔒 {t("buy_minutes_secure_payment_footer")}
+          </div>
+        </div>
+
+        {isPayPalPending && (
           <div style={styles.pendingCard}>
             <div style={styles.pendingTitle}>{t("buy_minutes_pending_title")}</div>
 
@@ -218,8 +368,32 @@ export default function BuyMinutesWeb() {
               {t("buy_minutes_total")}: USD $
               {Number(pendingOrder.totalAmountUsd ?? 0).toFixed(2)}
               <br />
-              {t("buy_minutes_return_hint")}
+              {capturing ? t("buy_minutes_confirming") : t("buy_minutes_return_hint")}
             </div>
+
+            <button
+              type="button"
+              style={{
+                ...styles.captureBtn,
+                ...(capturing ? styles.captureBtnDisabled : {}),
+              }}
+              disabled={capturing}
+              onClick={handleCaptureFallback}
+            >
+              {capturing ? t("buy_minutes_confirming") : t("buy_minutes_paid_fallback")}
+            </button>
+
+            <button
+              type="button"
+              style={styles.cancelBtn}
+              disabled={capturing}
+              onClick={() => {
+                setPendingOrder(null);
+                localStorage.removeItem("lp_pending_paypal_order");
+              }}
+            >
+              {t("buy_minutes_cancel")}
+            </button>
           </div>
         )}
 
@@ -230,11 +404,11 @@ export default function BuyMinutesWeb() {
               type="button"
               style={{
                 ...styles.packageCard,
-                ...((buyingId === pkg.id || !!pendingOrder?.orderId)
+                ...(buyingId === pkg.id || isPayPalPending
                   ? styles.packageCardDisabled
                   : {}),
               }}
-              disabled={buyingId === pkg.id || !!pendingOrder?.orderId}
+              disabled={buyingId === pkg.id || isPayPalPending}
               onClick={() => handleBuy(pkg)}
             >
               <div style={styles.packageHeaderRow}>
@@ -247,9 +421,7 @@ export default function BuyMinutesWeb() {
                 </div>
               </div>
 
-              <div style={styles.packageHint}>
-                {t("buy_minutes_tap_to_pay")}
-              </div>
+              <div style={styles.packageHint}>{t("buy_minutes_tap_to_pay")}</div>
 
               {buyingId === pkg.id && (
                 <div style={styles.processingText}>
@@ -321,6 +493,36 @@ const styles = {
     fontWeight: 700,
   },
 
+  securePaymentCard: {
+    backgroundColor: "#FFF",
+    borderRadius: "16px",
+    padding: "14px",
+    marginBottom: "14px",
+    border: "1px solid #D8C2FF",
+    boxShadow: "0 2px 8px rgba(60, 20, 110, 0.08)",
+  },
+
+  securePaymentTitle: {
+    fontSize: "14px",
+    fontWeight: 900,
+    color: PRIMARY,
+    marginBottom: "6px",
+  },
+
+  securePaymentBody: {
+    fontSize: "12px",
+    color: "#444",
+    lineHeight: 1.5,
+  },
+
+  securePaymentFooter: {
+    marginTop: "8px",
+    fontSize: "12px",
+    fontWeight: 800,
+    color: PRIMARY,
+    lineHeight: 1.4,
+  },
+
   pendingCard: {
     backgroundColor: "#FFF",
     borderRadius: "16px",
@@ -341,6 +543,35 @@ const styles = {
     fontSize: "13px",
     color: "#333",
     lineHeight: 1.5,
+    marginBottom: "12px",
+  },
+
+  captureBtn: {
+    width: "100%",
+    backgroundColor: PRIMARY,
+    color: "#FFF",
+    border: "none",
+    borderRadius: "12px",
+    padding: "12px",
+    fontWeight: 800,
+    cursor: "pointer",
+    marginBottom: "10px",
+  },
+
+  captureBtnDisabled: {
+    opacity: 0.7,
+    cursor: "not-allowed",
+  },
+
+  cancelBtn: {
+    width: "100%",
+    backgroundColor: "#F2F2F2",
+    color: "#333",
+    border: "none",
+    borderRadius: "12px",
+    padding: "10px",
+    fontWeight: 700,
+    cursor: "pointer",
   },
 
   packagesContainer: {
@@ -368,7 +599,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: "10px",
   },
 
   packageMinutes: {
@@ -388,6 +618,7 @@ const styles = {
     borderRadius: "999px",
     whiteSpace: "nowrap",
     overflow: "hidden",
+    marginLeft: "10px",
   },
 
   packageHint: {
