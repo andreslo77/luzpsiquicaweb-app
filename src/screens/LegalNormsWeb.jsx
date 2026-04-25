@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import AppLayoutWeb from "../components/layout/AppLayoutWeb.jsx";
 import { useLang } from "../context/LanguageContext.jsx";
 
-const LEGAL_VERSION = "2026-01-04";
+const LEGAL_VERSION = "2026-04-24";
 const LEGAL_OWNER = "Claudia Loaiza";
 const LEGAL_EMAIL = "luzpsiquica1@gmail.com";
 const WHATSAPP_NUMBER = "+18136187770";
