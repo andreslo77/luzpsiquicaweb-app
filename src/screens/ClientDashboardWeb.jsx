@@ -1,5 +1,5 @@
 // screens/ClientDashboardWeb.jsx
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuthWeb } from '../context/AuthContextWeb';
@@ -27,7 +27,11 @@ function getPsychicDisplayName(p, t) {
     p?.nickname,
     p?.name,
   ];
-  const found = candidates.map((x) => (x ? String(x).trim() : '')).find(Boolean);
+
+  const found = candidates
+    .map((x) => (x ? String(x).trim() : ''))
+    .find(Boolean);
+
   return found || t('common.psychic');
 }
 
@@ -36,20 +40,28 @@ export default function ClientDashboardWeb() {
   const { user, token, logout, refreshMe } = useAuthWeb();
   const { t } = useLang();
 
-  const tr = (key, vars = {}) => {
-    let base = '';
-    try {
-      base = String(t(key, vars));
-    } catch (e) {
-      base = String(t(key));
-    }
+  const isMountedRef = useRef(true);
+  const fetchingRef = useRef(false);
+  const lastRefreshAtRef = useRef(0);
 
-    Object.keys(vars).forEach((k) => {
-      base = base.split(`{{${k}}}`).join(String(vars[k]));
-    });
+  const tr = useCallback(
+    (key, vars = {}) => {
+      let base = '';
 
-    return base;
-  };
+      try {
+        base = String(t(key, vars));
+      } catch (e) {
+        base = String(t(key));
+      }
+
+      Object.keys(vars).forEach((k) => {
+        base = base.split(`{{${k}}}`).join(String(vars[k]));
+      });
+
+      return base;
+    },
+    [t]
+  );
 
   const nameRaw = user?.name || t('clientdash_default_name');
   const name = String(nameRaw || '').trim() || t('clientdash_default_name');
@@ -57,100 +69,141 @@ export default function ClientDashboardWeb() {
   const [minutes, setMinutes] = useState(null);
   const [callsCount, setCallsCount] = useState(null);
   const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const fetchData = useCallback(async () => {
-    try {
-      if (!API_BASE_URL) {
-        window.alert(t('clientdash_error_config_body'));
-        return;
-      }
-
-      setLoading(true);
-
-      const authToken =
-        token ||
-        localStorage.getItem('auth_token') ||
-        localStorage.getItem('token') ||
-        sessionStorage.getItem('auth_token') ||
-        sessionStorage.getItem('token');
-
-      if (!authToken) {
-        window.alert(t('clientdash_session_expired_body'));
-        navigate('/');
-        return;
-      }
-
-      const headers = { Authorization: `Bearer ${authToken}` };
-
-      const balancePromise = axios.get(`${API_BASE_URL}/minutes/balance`, { headers });
-      const historyPromise = axios.get(`${API_BASE_URL}/history/calls?limit=100`, { headers });
-
-      const [balanceRes, historyRes] = await Promise.all([balancePromise, historyPromise]);
-
-      const unified = Array.isArray(historyRes.data?.items) ? historyRes.data.items : [];
-      const summary = historyRes.data?.summary || null;
-
-      setMinutes(balanceRes.data?.minutes ?? summary?.minutesAvailable ?? 0);
-      setCallsCount(unified.length);
-
-      const normalized = unified.map((item) => ({
-        _id: item.id || item._id,
-        status: item.status,
-        clientRating: item.clientRating ?? null,
-        psychic: item.otherUser
-          ? {
-              _id: item.otherUser.id || item.otherUser._id,
-              name: item.otherUser.name || '',
-              psychicName: item.otherUser.psychicName || '',
-              photo: item.otherUser.photo || '',
-            }
-          : null,
-      }));
-
-      setHistory(normalized);
-    } catch (err) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message || err?.message;
-      console.log('[ClientDashboardWeb] fetchData error:', status, msg);
-
-      if (status === 401) {
-        await logout();
-        window.alert(t('clientdash_session_expired_body'));
-        navigate('/');
-        return;
-      }
-
-      window.alert(t('clientdash_error_body'));
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate, t, token, logout]);
-
-  const refreshDashboard = useCallback(async () => {
-    try {
-      if (typeof refreshMe === 'function') {
-        await refreshMe();
-      }
-    } catch (_) {
-      // noop
-    }
-
-    await fetchData();
-  }, [refreshMe, fetchData]);
+  const [loading, setLoading] = useState(true);
+  const [refreshingSilent, setRefreshingSilent] = useState(false);
 
   useEffect(() => {
-    refreshDashboard();
-  }, [refreshDashboard]);
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const getAuthToken = useCallback(() => {
+    return (
+      token ||
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('token') ||
+      sessionStorage.getItem('auth_token') ||
+      sessionStorage.getItem('token')
+    );
+  }, [token]);
+
+  const fetchData = useCallback(
+    async ({ silent = false, withRefreshMe = false } = {}) => {
+      if (fetchingRef.current) return;
+
+      try {
+        if (!API_BASE_URL) {
+          window.alert(t('clientdash_error_config_body'));
+          return;
+        }
+
+        fetchingRef.current = true;
+
+        if (!silent) {
+          setLoading(true);
+        } else {
+          setRefreshingSilent(true);
+        }
+
+        if (withRefreshMe && typeof refreshMe === 'function') {
+          try {
+            await refreshMe();
+          } catch (_) {
+            // noop
+          }
+        }
+
+        const authToken = getAuthToken();
+
+        if (!authToken) {
+          window.alert(t('clientdash_session_expired_body'));
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        const headers = { Authorization: `Bearer ${authToken}` };
+
+        const [balanceRes, historyRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/minutes/balance`, { headers }),
+          axios.get(`${API_BASE_URL}/history/calls?limit=100`, { headers }),
+        ]);
+
+        if (!isMountedRef.current) return;
+
+        const unified = Array.isArray(historyRes.data?.items)
+          ? historyRes.data.items
+          : [];
+
+        const summary = historyRes.data?.summary || null;
+
+        setMinutes(balanceRes.data?.minutes ?? summary?.minutesAvailable ?? 0);
+        setCallsCount(unified.length);
+
+        const normalized = unified.map((item) => ({
+          _id: item.id || item._id,
+          status: item.status,
+          clientRating: item.clientRating ?? null,
+          psychic: item.otherUser
+            ? {
+                _id: item.otherUser.id || item.otherUser._id,
+                name: item.otherUser.name || '',
+                psychicName: item.otherUser.psychicName || '',
+                photo: item.otherUser.photo || '',
+              }
+            : null,
+        }));
+
+        setHistory(normalized);
+      } catch (err) {
+        const status = err?.response?.status;
+        const msg = err?.response?.data?.message || err?.message;
+
+        console.log('[ClientDashboardWeb] fetchData error:', status, msg);
+
+        if (status === 401) {
+          await logout();
+          window.alert(t('clientdash_session_expired_body'));
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        if (!silent) {
+          window.alert(t('clientdash_error_body'));
+        }
+      } finally {
+        fetchingRef.current = false;
+
+        if (isMountedRef.current) {
+          setLoading(false);
+          setRefreshingSilent(false);
+        }
+      }
+    },
+    [getAuthToken, logout, navigate, refreshMe, t]
+  );
 
   useEffect(() => {
+    fetchData({ silent: false, withRefreshMe: true });
+  }, [fetchData]);
+
+  useEffect(() => {
+    const refreshIfNeeded = () => {
+      const now = Date.now();
+
+      if (now - lastRefreshAtRef.current < 2500) return;
+
+      lastRefreshAtRef.current = now;
+      fetchData({ silent: true, withRefreshMe: true });
+    };
+
     const handleFocus = () => {
-      refreshDashboard();
+      refreshIfNeeded();
     };
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        refreshDashboard();
+        refreshIfNeeded();
       }
     };
 
@@ -161,7 +214,7 @@ export default function ClientDashboardWeb() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [refreshDashboard]);
+  }, [fetchData]);
 
   const handleGoToDirectCall = () => {
     navigate('/home');
@@ -180,6 +233,7 @@ export default function ClientDashboardWeb() {
       }
 
       let snap = null;
+
       try {
         snap = JSON.parse(raw);
       } catch (e) {
@@ -188,6 +242,7 @@ export default function ClientDashboardWeb() {
       }
 
       const psychicId = snap?.psychicId ? String(snap.psychicId) : null;
+
       if (!psychicId) {
         window.alert(t('clientdash_select_psychic_body'));
         navigate('/home');
@@ -226,9 +281,14 @@ export default function ClientDashboardWeb() {
   const minutesNum = Number(minutes);
   const hasMinutesValue = minutes !== null && Number.isFinite(minutesNum);
   const lowMinutesThreshold = 2;
+
   const showNoMinutesBanner = !loading && hasMinutesValue && minutesNum <= 0;
+
   const showLowMinutesBanner =
-    !loading && hasMinutesValue && minutesNum > 0 && minutesNum <= lowMinutesThreshold;
+    !loading &&
+    hasMinutesValue &&
+    minutesNum > 0 &&
+    minutesNum <= lowMinutesThreshold;
 
   return (
     <AppLayoutWeb title={t('clientdash_header_title')} showBack={true} backTo="/home">
@@ -242,6 +302,10 @@ export default function ClientDashboardWeb() {
             <div style={styles.heroMinutesLabel}>{t('clientdash_minutes_available')}</div>
             <div style={styles.heroMinutesValue}>{minutes !== null ? minutes : '—'}</div>
           </div>
+
+          {refreshingSilent ? (
+            <div style={styles.silentRefreshText}>{t('clientdash_loading_info')}</div>
+          ) : null}
         </div>
 
         {user?.trialGranted && user?.trialUsed !== true && (
@@ -347,6 +411,7 @@ export default function ClientDashboardWeb() {
             <div style={styles.listWrap}>
               {lastCalls.map((c) => {
                 const display = getPsychicDisplayName(c?.psychic, t);
+
                 return (
                   <div key={c._id} style={styles.callRow}>
                     <div style={styles.callDot} />
@@ -412,9 +477,7 @@ export default function ClientDashboardWeb() {
 }
 
 const styles = {
-  content: {
-    padding: '0',
-  },
+  content: { padding: '0' },
 
   heroCard: {
     background: '#FFFFFF',
@@ -465,6 +528,13 @@ const styles = {
     fontSize: '22px',
     fontWeight: 800,
     lineHeight: 1,
+  },
+
+  silentRefreshText: {
+    marginTop: '8px',
+    color: '#7E57C2',
+    fontSize: '12px',
+    fontWeight: 700,
   },
 
   trialBox: {
