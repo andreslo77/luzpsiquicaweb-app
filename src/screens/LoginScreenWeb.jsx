@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+// screens/LoginScreenWeb.jsx
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthWeb } from "../context/AuthContextWeb.jsx";
 import { useLang } from "../context/LanguageContext.jsx";
@@ -9,6 +10,18 @@ export default function LoginScreenWeb() {
   const navigate = useNavigate();
   const { login, loading, isAuthenticated } = useAuthWeb();
   const { t } = useLang();
+
+  const tt = useCallback(
+    (key, fallback) => {
+      try {
+        if (typeof t === "function") return t(key) ?? fallback;
+        return fallback;
+      } catch {
+        return fallback;
+      }
+    },
+    [t]
+  );
 
   const [emailOrPhone, setEmailOrPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -22,9 +35,38 @@ export default function LoginScreenWeb() {
     }
   }, [isAuthenticated, navigate]);
 
+  const looksLikeEmail = (value) => {
+    return /\S+@\S+\.\S+/.test(String(value || "").trim());
+  };
+
+  const normalizePhoneInput = (value) => {
+    let v = String(value || "").trim();
+    const hasPlus = v.startsWith("+");
+
+    v = v.replace(/[^\d+]/g, "");
+    v = v.replace(/\+/g, "");
+
+    if (hasPlus) v = `+${v}`;
+
+    return v;
+  };
+
+  const normalizeLoginIdentifier = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+
+    if (looksLikeEmail(raw)) {
+      return raw.toLowerCase();
+    }
+
+    return normalizePhoneInput(raw);
+  };
+
   const handleLogin = async () => {
-    if (!emailOrPhone.trim() || !password.trim()) {
-      setError(t("login_missing_credentials") || "Completa correo/teléfono y contraseña.");
+    const id = normalizeLoginIdentifier(emailOrPhone);
+
+    if (!id || !password) {
+      setError(tt("login_missing_credentials", "Faltan credenciales"));
       return;
     }
 
@@ -32,47 +74,60 @@ export default function LoginScreenWeb() {
       setBusy(true);
       setError("");
 
-      await login(emailOrPhone, password);
+      await login(id, password);
 
       navigate("/dashboard", { replace: true });
     } catch (e) {
-      setError(e?.message || t("login_error_title") || "No se pudo iniciar sesión");
+      setError(e?.message || tt("login_error_body", "No se pudo iniciar sesión"));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <AppLayoutWeb title={t("login_header_title") || "Iniciar sesión"} showBack={false}>
+    <AppLayoutWeb title={tt("login_header_title", "Iniciar sesión")} showBack={false}>
       <div style={styles.content}>
         <div style={styles.card}>
           <div style={styles.logoWrap}>
             <img src={logoLp} alt="Luz Psíquica" style={styles.logoImg} />
           </div>
 
-          <h1 style={styles.title}>{t("login_title") || "Luz Psíquica"}</h1>
-          <p style={styles.subtitle}>{t("login_subtitle") || "Accede a tu cuenta para continuar"}</p>
+          <h1 style={styles.title}>Luz Psíquica</h1>
+
+          <p style={styles.subtitle}>
+            {tt("login_subtitle", "Accede a tu cuenta para continuar")}
+          </p>
 
           <input
             type="text"
-            placeholder={t("login_email_or_phone") || "Correo o teléfono"}
+            placeholder={tt("login_email_or_phone", "Email or phone")}
             value={emailOrPhone}
-            onChange={(e) => setEmailOrPhone(e.target.value)}
+            onChange={(e) => {
+              setEmailOrPhone(e.target.value);
+              setError("");
+            }}
             style={styles.input}
             disabled={busy || loading}
+            autoCapitalize="none"
+            autoCorrect="off"
           />
 
           <p style={styles.helperText}>
-            {t("login_phone_helper") ||
-              "Si usas teléfono, escríbelo en formato internacional. Ejemplo: +573001234567"}
+            {tt(
+              "login_phone_helper",
+              "If you use phone, enter it in international format. Example: +573001234567"
+            )}
           </p>
 
           <div style={styles.passwordWrap}>
             <input
               type={showPassword ? "text" : "password"}
-              placeholder={t("login_password") || "Contraseña"}
+              placeholder={tt("login_password", "Password")}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError("");
+              }}
               style={styles.passwordInput}
               disabled={busy || loading}
               onKeyDown={(e) => {
@@ -87,7 +142,16 @@ export default function LoginScreenWeb() {
               onClick={() => setShowPassword((v) => !v)}
               style={styles.eyeBtn}
               disabled={busy || loading}
-              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              aria-label={
+                showPassword
+                  ? tt("login_accessibility_hide_password", "Ocultar contraseña")
+                  : tt("login_accessibility_show_password", "Mostrar contraseña")
+              }
+              title={
+                showPassword
+                  ? tt("login_accessibility_hide_password", "Ocultar contraseña")
+                  : tt("login_accessibility_show_password", "Mostrar contraseña")
+              }
             >
               {showPassword ? "🙈" : "👁️"}
             </button>
@@ -96,6 +160,7 @@ export default function LoginScreenWeb() {
           {!!error && <p style={styles.error}>{error}</p>}
 
           <button
+            type="button"
             onClick={handleLogin}
             style={{
               ...styles.button,
@@ -103,7 +168,7 @@ export default function LoginScreenWeb() {
             }}
             disabled={busy || loading}
           >
-            {busy ? "Ingresando..." : t("login_enter") || "Ingresar"}
+            {busy ? tt("login_entering", "Ingresando...") : tt("login_enter", "Sign in")}
           </button>
 
           <button
@@ -112,7 +177,7 @@ export default function LoginScreenWeb() {
             style={styles.linkBtn}
             disabled={busy || loading}
           >
-            {t("login_forgot") || "¿Olvidaste tu contraseña?"}
+            {tt("login_forgot", "Forgot your password?")}
           </button>
 
           <button
@@ -121,15 +186,16 @@ export default function LoginScreenWeb() {
             style={styles.linkBtn}
             disabled={busy || loading}
           >
-            {t("login_client_register") || "¿Eres cliente? Crear cuenta"}
+            {tt("login_client_register", "Client? Create account")}
           </button>
 
           <button
             type="button"
             onClick={() => navigate("/psychic-register")}
-            style={styles.linkBtn}
+            style={styles.psychicLinkBtn}
             disabled={busy || loading}
           >
+            {tt("login_psychic_apply", "Psychic? Apply to work with us")}
           </button>
         </div>
       </div>
@@ -169,11 +235,11 @@ const styles = {
   },
 
   title: {
-    fontSize: "24px",
-    margin: "0 0 6px 0",
+    fontSize: "30px",
+    margin: "0 0 18px 0",
     color: "#311B92",
     textAlign: "center",
-    fontWeight: 700,
+    fontWeight: 900,
     lineHeight: 1.15,
   },
 
@@ -245,7 +311,7 @@ const styles = {
     border: "none",
     borderRadius: "12px",
     cursor: "pointer",
-    fontWeight: 700,
+    fontWeight: 900,
     fontSize: "14px",
     marginTop: "4px",
   },
@@ -261,7 +327,19 @@ const styles = {
     border: "none",
     background: "transparent",
     color: "#6A1B9A",
-    fontWeight: 700,
+    fontWeight: 800,
+    fontSize: "14px",
+    textDecoration: "underline",
+    cursor: "pointer",
+  },
+
+  psychicLinkBtn: {
+    marginTop: "14px",
+    width: "100%",
+    border: "none",
+    background: "transparent",
+    color: "#5A1B7A",
+    fontWeight: 900,
     fontSize: "14px",
     textDecoration: "underline",
     cursor: "pointer",

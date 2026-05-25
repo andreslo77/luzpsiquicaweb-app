@@ -1,5 +1,5 @@
 // screens/ClientHomeWeb.jsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config/env.web.js";
 import { useAuthWeb } from "../context/AuthContextWeb.jsx";
@@ -7,6 +7,7 @@ import { useLang } from "../context/LanguageContext.jsx";
 import AppLayoutWeb from "../components/layout/AppLayoutWeb.jsx";
 
 const PSYCHIC_MINUTE_RATE_LABEL = "US$1.25/min";
+const POST_AUTH_INTENT_KEY = "lp_post_auth_intent";
 
 function safeNum(n, fallback = 0) {
   const x = Number(n);
@@ -25,9 +26,52 @@ function getPsychicDisplayName(item) {
   return (item?.psychicName || item?.name || "Psíquico").trim();
 }
 
+function buildPsychicForPublicUI(psychic) {
+  const displayName = getPsychicDisplayName(psychic);
+  const legalName = typeof psychic?.name === "string" ? psychic.name : "";
+
+  return {
+    ...psychic,
+    legalName,
+    publicName: displayName,
+    name: displayName,
+  };
+}
+
 function formatRating(item) {
-  const r = safeNum(item?.rating, 0);
-  return r.toFixed(2);
+  return safeNum(item?.rating, 0).toFixed(2);
+}
+
+function isValidImageUri(uri) {
+  if (!uri) return false;
+  const u = String(uri).trim();
+  if (!u) return false;
+  if (u === "undefined" || u === "null" || u === "NaN") return false;
+  if (u.startsWith("data:image/")) return true;
+  if (u.startsWith("http://") || u.startsWith("https://")) return true;
+  return false;
+}
+
+function resolvePhotoUrl(photo) {
+  const value = String(photo || "").trim();
+  if (!value || value === "undefined" || value === "null" || value === "NaN") return null;
+
+  if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:image/")) {
+    return value;
+  }
+
+  const root = String(API_BASE_URL || "").replace(/\/api$/, "").replace(/\/$/, "");
+  if (!root) return null;
+
+  if (value.startsWith("/")) return `${root}${value}`;
+  return `${root}/${value}`;
+}
+
+function getInitials(name) {
+  const s = String(name || "").trim();
+  if (!s) return "P";
+  const parts = s.split(" ").filter(Boolean);
+  return parts.slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "P";
 }
 
 function normalizeLanguageToken(value) {
@@ -37,6 +81,18 @@ function normalizeLanguageToken(value) {
     .toLowerCase()
     .replace(/[.]/g, "")
     .trim();
+}
+
+function getTranslatedLanguageLabel(langCode, t, fallbackLabel) {
+  try {
+    const value = typeof t === "function" ? t(`languages.${langCode}`) : null;
+    if (value === undefined || value === null || String(value) === "undefined") {
+      return fallbackLabel || langCode;
+    }
+    return value;
+  } catch {
+    return fallbackLabel || langCode;
+  }
 }
 
 function parsePsychicLanguages(raw, t) {
@@ -49,12 +105,12 @@ function parsePsychicLanguages(raw, t) {
     .filter(Boolean);
 
   const knownMap = [
-    { keys: ["espanol", "spanish", "castellano"], flag: "🇪🇸", label: t("languages.es"), id: "es" },
-    { keys: ["ingles", "english"], flag: "🇺🇸", label: t("languages.en"), id: "en" },
-    { keys: ["frances", "french", "francais"], flag: "🇫🇷", label: t("languages.fr"), id: "fr" },
-    { keys: ["aleman", "german", "deutsch"], flag: "🇩🇪", label: t("languages.de"), id: "de" },
-    { keys: ["portugues", "portuguese"], flag: "🇵🇹", label: t("languages.pt"), id: "pt" },
-    { keys: ["italiano", "italian"], flag: "🇮🇹", label: t("languages.it"), id: "it" },
+    { keys: ["espanol", "spanish", "castellano"], flag: "🇪🇸", id: "es", fallbackLabel: "Español" },
+    { keys: ["ingles", "english"], flag: "🇺🇸", id: "en", fallbackLabel: "Inglés" },
+    { keys: ["frances", "french", "francais"], flag: "🇫🇷", id: "fr", fallbackLabel: "Francés" },
+    { keys: ["aleman", "german", "deutsch"], flag: "🇩🇪", id: "de", fallbackLabel: "Alemán" },
+    { keys: ["portugues", "portuguese"], flag: "🇵🇹", id: "pt", fallbackLabel: "Portugués" },
+    { keys: ["italiano", "italian"], flag: "🇮🇹", id: "it", fallbackLabel: "Italiano" },
   ];
 
   const seen = new Set();
@@ -75,42 +131,11 @@ function parsePsychicLanguages(raw, t) {
     result.push({
       id: itemId,
       flag: found?.flag || "🌐",
-      label: found?.label || token,
+      label: found?.id ? getTranslatedLanguageLabel(found.id, t, found.fallbackLabel) : token,
     });
   });
 
   return result;
-}
-
-function getInitials(name) {
-  const s = String(name || "").trim();
-  if (!s) return "P";
-  const parts = s.split(" ").filter(Boolean);
-  const ini = parts
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join("")
-    .toUpperCase();
-  return ini || "P";
-}
-
-function resolvePhotoUrl(photo) {
-  const value = String(photo || "").trim();
-  if (!value || value === "undefined" || value === "null") return null;
-
-  if (
-    value.startsWith("http://") ||
-    value.startsWith("https://") ||
-    value.startsWith("data:image/")
-  ) {
-    return value;
-  }
-
-  const root = String(API_BASE_URL || "").replace(/\/api$/, "").replace(/\/$/, "");
-  if (!root) return null;
-
-  if (value.startsWith("/")) return `${root}${value}`;
-  return `${root}/${value}`;
 }
 
 function pickSnippet(item, fallback = "Psíquico disponible para atenderte.") {
@@ -123,8 +148,37 @@ function pickSnippet(item, fallback = "Psíquico disponible para atenderte.") {
   return fallback;
 }
 
+function getFriendlyErrorMessage(error, t) {
+  const raw = String(error?.message || "").trim().toLowerCase();
+
+  if (raw.includes("network request failed") || raw.includes("failed to fetch") || raw.includes("network error")) {
+    return typeof t === "function"
+      ? t("network_error_message")
+      : "No se pudo conectar con el servidor. Verifica tu conexión e inténtalo de nuevo.";
+  }
+
+  return (
+    error?.message ||
+    (typeof t === "function"
+      ? t("generic_error_message")
+      : "Ocurrió un error inesperado. Inténtalo de nuevo.")
+  );
+}
+
+function slugifyPsychicName(name) {
+  return String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
 function sortPsychics(arr) {
   const data = Array.isArray(arr) ? arr : [];
+
   return [...data].sort((a, b) => {
     const aAvail = computeAvailableCore(a);
     const bAvail = computeAvailableCore(b);
@@ -140,15 +194,23 @@ function sortPsychics(arr) {
   });
 }
 
-function slugifyPsychicName(name) {
-  return String(name || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
+function setPostAuthIntent(payload) {
+  try {
+    localStorage.setItem(POST_AUTH_INTENT_KEY, JSON.stringify(payload));
+  } catch {
+    // noop
+  }
+}
+
+function popPostAuthIntent() {
+  try {
+    const raw = localStorage.getItem(POST_AUTH_INTENT_KEY);
+    if (!raw) return null;
+    localStorage.removeItem(POST_AUTH_INTENT_KEY);
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 export default function ClientHomeWeb() {
@@ -159,54 +221,170 @@ export default function ClientHomeWeb() {
   const [psychics, setPsychics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState("");
+  const [reviewedMap, setReviewedMap] = useState({});
 
-  const name = String(user?.name || "Cliente").trim() || "Cliente";
+  const intentProcessedRef = useRef(false);
 
-  const greetingText = useMemo(() => {
-    return isAuthenticated
-      ? t("clienthome_welcome_name", { name })
-      : t("clienthome_welcome");
-  }, [isAuthenticated, name, t]);
+  const tr = useCallback(
+    (key, vars = {}) => {
+      let base = "";
+      try {
+        base = String(t(key, vars));
+      } catch {
+        base = String(t(key));
+      }
 
-  const subtitleText = useMemo(() => {
-    return t("clienthome_subtitle");
-  }, [t]);
-
-  const loadPsychics = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const headers = {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      };
-
-      const res = await fetch(`${API_BASE_URL}/users/psychics`, {
-        method: "GET",
-        headers,
+      Object.keys(vars).forEach((k) => {
+        base = base.split(`{{${k}}}`).join(String(vars[k]));
       });
 
-      const data = await res.json().catch(() => []);
-      if (!res.ok) {
-        throw new Error(data?.message || t("clienthome_error_load_psychics"));
-      }
+      return base;
+    },
+    [t]
+  );
 
-      if (!Array.isArray(data)) {
-        throw new Error(t("clienthome_error_unexpected_format"));
-      }
+  const name = String(user?.name || "Cliente").trim() || "Cliente";
+  const myId = user?._id || user?.id;
+  const myIdStr = myId ? String(myId) : null;
+  const hasSession = !!isAuthenticated || !!token || !!myIdStr;
 
-      setPsychics(sortPsychics(data));
-    } catch (err) {
-      console.error("[ClientHomeWeb] loadPsychics error:", err);
-      alert(err?.message || t("clienthome_error_load_psychics"));
-    } finally {
-      setLoading(false);
-    }
-  }, [token, t]);
+  const greetingText = useMemo(() => {
+    return hasSession ? tr("clienthome_welcome_name", { name }) : t("clienthome_welcome");
+  }, [hasSession, name, t, tr]);
+
+  const loadReviewedFlags = useCallback(
+    async (list) => {
+      if (!myIdStr) return;
+
+      const ids = (Array.isArray(list) ? list : [])
+        .map((p) => p?._id || p?.id)
+        .filter(Boolean);
+
+      if (!ids.length) return;
+
+      const map = {};
+      ids.forEach((pid) => {
+        try {
+          const key = `lp_reviewed_${String(myIdStr)}_${String(pid)}`;
+          map[pid] = localStorage.getItem(key) === "1" || sessionStorage.getItem(key) === "1";
+        } catch {
+          map[pid] = false;
+        }
+      });
+
+      setReviewedMap(map);
+    },
+    [myIdStr]
+  );
+
+  const loadPsychics = useCallback(
+    async ({ silent = false } = {}) => {
+      try {
+        if (!API_BASE_URL) throw new Error(t("clienthome_error_config_body"));
+
+        if (!silent) setLoading(true);
+
+        const headers = {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+
+        const res = await fetch(`${API_BASE_URL}/users/psychics`, {
+          method: "GET",
+          headers,
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(t("clienthome_error_invalid_server"));
+        }
+
+        if (!res.ok) {
+          throw new Error(data?.message || t("clienthome_error_load_psychics"));
+        }
+
+        if (!Array.isArray(data)) {
+          throw new Error(t("clienthome_error_unexpected_format"));
+        }
+
+        const sorted = sortPsychics(data);
+        setPsychics(sorted);
+        await loadReviewedFlags(sorted);
+      } catch (err) {
+        console.error("[ClientHomeWeb] loadPsychics error:", err);
+        alert(getFriendlyErrorMessage(err, t));
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [token, t, loadReviewedFlags]
+  );
 
   useEffect(() => {
     loadPsychics();
   }, [loadPsychics]);
+
+  useEffect(() => {
+    const refresh = async () => {
+      try {
+        if (typeof refreshMe === "function" && hasSession) {
+          await refreshMe();
+        }
+      } catch {
+        // noop
+      }
+
+      await loadPsychics({ silent: true });
+    };
+
+    const handleFocus = () => refresh();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [refreshMe, hasSession, loadPsychics]);
+
+  const requireAuthOrRedirect = useCallback(
+    ({ type, psychic }) => {
+      if (hasSession) return true;
+
+      const snap = psychic
+        ? {
+            _id: psychic?._id || psychic?.id,
+            name: psychic?.psychicName || psychic?.name,
+            photo: psychic?.photo && String(psychic.photo).trim() !== "" ? psychic.photo : null,
+            isAvailable: psychic?.isAvailable,
+            isBusy: psychic?.isBusy,
+            bio: psychic?.bio,
+            about: psychic?.about,
+            rating: psychic?.rating,
+            ratingsCount: psychic?.ratingsCount,
+            callsReceived: psychic?.callsReceived,
+          }
+        : null;
+
+      setPostAuthIntent({
+        type,
+        psychicId: psychic?._id || psychic?.id ? String(psychic?._id || psychic?.id) : null,
+        psychicSnapshot: snap,
+        ts: Date.now(),
+      });
+
+      navigate("/register");
+      return false;
+    },
+    [hasSession, navigate]
+  );
 
   const handleLogout = async () => {
     await logout();
@@ -216,7 +394,7 @@ export default function ClientHomeWeb() {
   const handlePanel = async () => {
     try {
       setBusyAction("panel");
-      navigate(isAuthenticated ? "/dashboard" : "/login");
+      navigate(hasSession ? "/dashboard" : "/register");
     } finally {
       setBusyAction("");
     }
@@ -246,97 +424,163 @@ export default function ClientHomeWeb() {
     const slug = slugifyPsychicName(psychicName);
 
     if (!slug) return;
-    navigate(`/psychic/${slug}`);
+    navigate(`/psychic/${slug}`, {
+      state: {
+        psychic,
+        psychicId: psychic?._id || psychic?.id || null,
+      },
+    });
   };
 
-  const requireLogin = () => {
-    navigate("/login");
-  };
+  const handleChat = useCallback(
+    async (psychic) => {
+      const ok = requireAuthOrRedirect({ type: "chat", psychic });
+      if (!ok) return;
 
-  const handleChat = async (psychic) => {
-    if (!isAuthenticated) {
-      requireLogin();
-      return;
-    }
+      const otherUserId = String(psychic?._id || psychic?.id || "");
+      const otherUserName = getPsychicDisplayName(psychic);
+      const otherUserAvailable = computeChatAvailableCore(psychic);
 
-    const otherUserId = String(psychic?._id || psychic?.id || "");
-    const otherUserName = getPsychicDisplayName(psychic);
-    const otherUserAvailable = computeChatAvailableCore(psychic);
-
-    if (!otherUserId) {
-      alert("No se pudo abrir el chat: falta el ID del psíquico.");
-      return;
-    }
-
-    setBusyAction(`chat:${otherUserId}`);
-
-    navigate(
-      `/chat?otherUserId=${encodeURIComponent(otherUserId)}&otherUserName=${encodeURIComponent(
-        otherUserName
-      )}&otherUserAvailable=${encodeURIComponent(String(otherUserAvailable))}`
-    );
-  };
-
-  const handleCall = async (psychic) => {
-    if (!isAuthenticated) {
-      requireLogin();
-      return;
-    }
-
-    const psychicId = String(psychic?._id || psychic?.id || "");
-    const psychicName = getPsychicDisplayName(psychic);
-    const psychicPhoto = psychic?.photo || "";
-    const actionKey = `call:${psychicId}`;
-
-    if (!psychicId) {
-      alert("No se pudo iniciar la llamada: falta el ID del psíquico.");
-      return;
-    }
-
-    try {
-      setBusyAction(actionKey);
-
-      const res = await fetch(`${API_BASE_URL}/calls/start`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ psychicId }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (res.status === 402) {
-        await refreshMe();
-        alert(data?.message || t("clienthome_no_minutes_body"));
+      if (!otherUserAvailable) {
+        alert(t("clienthome_psychic_not_available_body"));
         return;
       }
 
-      if (!res.ok) {
-        throw new Error(data?.message || t("clienthome_call_start_error"));
+      if (!otherUserId) {
+        alert("No se pudo abrir el chat: falta el ID del psíquico.");
+        return;
       }
 
-      navigate("/call", {
-        state: {
-          callId: data?.callId,
-          roomId: data?.roomId,
-          initialMinutes: data?.clientMinutes ?? 0,
-          psychic: {
-            _id: psychicId,
-            name: psychicName,
-            psychicName: psychic?.psychicName || psychicName,
-            photo: psychicPhoto,
-          },
-        },
-      });
-    } catch (err) {
-      console.error("[ClientHomeWeb] handleCall error:", err);
-      alert(err?.message || t("clienthome_call_start_error"));
-    } finally {
+      const psychicPhotoResolvedRaw = resolvePhotoUrl(psychic?.photo);
+      const psychicPhotoResolved = isValidImageUri(psychicPhotoResolvedRaw) ? psychicPhotoResolvedRaw : null;
+
+      try {
+        localStorage.setItem(
+          "lp_last_chat_psychic",
+          JSON.stringify({
+            psychicId: otherUserId,
+            psychicName: otherUserName || "Psíquico",
+            psychicPhoto: psychicPhotoResolved,
+          })
+        );
+
+        if (myIdStr) {
+          localStorage.setItem(
+            "lp_last_chat_client",
+            JSON.stringify({
+              clientId: myIdStr,
+              clientName: user?.name || "Cliente",
+            })
+          );
+        }
+      } catch {
+        // noop
+      }
+
+      setBusyAction(`chat:${otherUserId}`);
+
+      navigate(
+        `/chat?otherUserId=${encodeURIComponent(otherUserId)}&otherUserName=${encodeURIComponent(
+          otherUserName
+        )}&otherUserAvailable=${encodeURIComponent(String(otherUserAvailable))}`
+      );
+
       setBusyAction("");
-    }
-  };
+    },
+    [requireAuthOrRedirect, myIdStr, user?.name, navigate, t]
+  );
+
+  const handleCall = useCallback(
+    async (psychic) => {
+      const ok = requireAuthOrRedirect({ type: "call", psychic });
+      if (!ok) return;
+
+      const psychicId = String(psychic?._id || psychic?.id || "");
+      const actionKey = `call:${psychicId}`;
+
+      if (!psychicId) {
+        alert("No se pudo iniciar la llamada: falta el ID del psíquico.");
+        return;
+      }
+
+      if (!computeAvailableCore(psychic)) {
+        alert(t("clienthome_psychic_not_available_body"));
+        return;
+      }
+
+      try {
+        setBusyAction(actionKey);
+
+        const res = await fetch(`${API_BASE_URL}/calls/start`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ psychicId }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.status === 401) {
+          alert(t("clienthome_session_expired_body"));
+          await logout();
+          return;
+        }
+
+        if (res.status === 402) {
+          await refreshMe?.();
+          alert(data?.message || t("clienthome_no_minutes_body"));
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error(data?.message || t("clienthome_call_start_error"));
+        }
+
+        if (!data?.callId || !data?.roomId) {
+          alert(t("clienthome_error_invalid_response"));
+          return;
+        }
+
+        const psychicForPublicUI = buildPsychicForPublicUI(psychic);
+
+        navigate("/call", {
+          state: {
+            callId: data.callId,
+            roomId: data.roomId,
+            initialMinutes: data?.clientMinutes ?? 0,
+            psychic: psychicForPublicUI,
+          },
+        });
+      } catch (err) {
+        console.error("[ClientHomeWeb] handleCall error:", err);
+        alert(getFriendlyErrorMessage(err, t));
+      } finally {
+        setBusyAction("");
+      }
+    },
+    [requireAuthOrRedirect, token, navigate, t, logout, refreshMe]
+  );
+
+  useEffect(() => {
+    if (!hasSession) return;
+    if (intentProcessedRef.current) return;
+
+    const intent = popPostAuthIntent();
+    if (!intent) return;
+
+    intentProcessedRef.current = true;
+
+    const { type, psychicId, psychicSnapshot } = intent || {};
+    if (!type || !psychicId) return;
+
+    const found = (psychics || []).find((x) => String(x?._id || x?.id) === String(psychicId));
+    const p = found || psychicSnapshot || { _id: psychicId, name: "Psíquico" };
+
+    if (type === "chat") handleChat(p);
+    if (type === "call") handleCall(p);
+  }, [hasSession, psychics, handleChat, handleCall]);
 
   return (
     <AppLayoutWeb
@@ -344,7 +588,7 @@ export default function ClientHomeWeb() {
       showBack={false}
       showFooter={true}
       rightSlot={
-        isAuthenticated ? (
+        hasSession ? (
           <button onClick={handleLogout} style={styles.headerBtn}>
             {t("clienthome_logout")}
           </button>
@@ -358,8 +602,7 @@ export default function ClientHomeWeb() {
       <div style={styles.content}>
         <div style={styles.heroBlock}>
           <h1 style={styles.greeting}>{greetingText}</h1>
-
-          <p style={styles.subtitle}>{subtitleText}</p>
+          <p style={styles.subtitle}>{t("clienthome_subtitle")}</p>
 
           <button
             style={{
@@ -371,7 +614,7 @@ export default function ClientHomeWeb() {
           >
             {busyAction === "panel"
               ? "Abriendo..."
-              : isAuthenticated
+              : hasSession
                 ? t("clienthome_my_panel")
                 : t("clienthome_login")}
           </button>
@@ -391,9 +634,13 @@ export default function ClientHomeWeb() {
               const ratingsCount = safeNum(item?.ratingsCount, 0);
               const callsReceived = safeNum(item?.callsReceived, 0);
               const languageItems = parsePsychicLanguages(item?.languages, t);
-              const photoUri = resolvePhotoUrl(item?.photo);
+
+              const rawResolved = resolvePhotoUrl(item?.photo);
+              const photoUri = isValidImageUri(rawResolved) ? rawResolved : null;
+
               const initials = getInitials(getPsychicDisplayName(item));
               const actionKeyBase = String(item?._id || item?.id || getPsychicDisplayName(item));
+              const already = myIdStr && reviewedMap?.[item?._id || item?.id];
 
               return (
                 <div
@@ -450,15 +697,9 @@ export default function ClientHomeWeb() {
                             : t("clienthome_psychic_not_available")}
                       </div>
 
-                      {busy ? (
-                        <div style={styles.occupiedPill}>
-                          {t("clienthome_busy_in_call")}
-                        </div>
-                      ) : null}
+                      {busy ? <div style={styles.occupiedPill}>{t("clienthome_busy_in_call")}</div> : null}
 
-                      <p style={styles.bio}>
-                        {pickSnippet(item, t("clienthome_snippet_fallback"))}
-                      </p>
+                      <p style={styles.bio}>{pickSnippet(item, t("clienthome_snippet_fallback"))}</p>
 
                       <div style={styles.actionsWrap}>
                         <button
@@ -500,14 +741,17 @@ export default function ClientHomeWeb() {
                         </button>
 
                         <button
-                          style={styles.commentsBtn}
+                          style={{
+                            ...styles.commentsBtn,
+                            ...(already ? styles.commentsBtnReviewed : {}),
+                          }}
                           disabled={busyAction === `comments:${actionKeyBase}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleComments(item);
                           }}
                         >
-                          {t("clienthome_comments")}
+                          {already ? t("clienthome_comments_sent") : t("clienthome_comments")}
                         </button>
                       </div>
                     </div>
@@ -536,13 +780,8 @@ const styles = {
     textAlign: "right",
   },
 
-  content: {
-    padding: "0",
-  },
-
-  heroBlock: {
-    marginBottom: "18px",
-  },
+  content: { padding: "0" },
+  heroBlock: { marginBottom: "18px" },
 
   greeting: {
     fontSize: "24px",
@@ -798,5 +1037,9 @@ const styles = {
     fontWeight: 700,
     cursor: "pointer",
     fontSize: "14px",
+  },
+
+  commentsBtnReviewed: {
+    opacity: 0.55,
   },
 };

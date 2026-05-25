@@ -1,3 +1,4 @@
+// screens/PsychicCommentsScreenWeb.jsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config/env.web.js";
@@ -11,8 +12,7 @@ function normalizeApiBase(url) {
   if (!url) return null;
   const base = String(url).trim().replace(/\/+$/, "");
   if (!base) return null;
-  if (base.endsWith("/api")) return base;
-  return `${base}/api`;
+  return base.endsWith("/api") ? base : `${base}/api`;
 }
 
 const API_URL = normalizeApiBase(RAW_API_URL);
@@ -30,47 +30,32 @@ function buildRootUrl() {
 
 function resolvePhotoUrl(value) {
   const v = String(value || "").trim();
-  if (!v || v === "undefined" || v === "null") return null;
+  if (!v || v === "undefined" || v === "null" || v === "NaN") return null;
 
-  if (
-    v.startsWith("http://") ||
-    v.startsWith("https://") ||
-    v.startsWith("data:image/")
-  ) {
+  if (v.startsWith("http://") || v.startsWith("https://") || v.startsWith("data:image/")) {
     return v;
   }
 
   const root = buildRootUrl();
   if (!root) return null;
 
-  if (v.startsWith("/")) return `${root}${v}`;
-  return `${root}/${v}`;
+  return v.startsWith("/") ? `${root}${v}` : `${root}/${v}`;
 }
 
-// =======================
-// localStorage helpers (web)
-// =======================
-function lsGet(key) {
+function storageGet(key) {
   try {
-    if (typeof window === "undefined") return null;
-    return window.localStorage.getItem(key);
+    return window.localStorage.getItem(key) || window.sessionStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function lsSet(key, value) {
+function storageSet(key, value) {
   try {
-    if (typeof window === "undefined") return;
     window.localStorage.setItem(key, value);
-  } catch {
-    // noop
-  }
+  } catch {}
 }
 
-// =======================
-// Utils
-// =======================
 function shortId(id) {
   if (!id) return "";
   const s = String(id);
@@ -81,19 +66,24 @@ function Stars({ value }) {
   const v = Math.max(0, Math.min(5, Number(value || 0)));
   const full = "★".repeat(Math.round(v));
   const empty = "☆".repeat(5 - Math.round(v));
-  return <span style={styles.stars}>{`${full}${empty}`}</span>;
+  return <span style={styles.stars}>{full}{empty}</span>;
 }
 
-function StarsPicker({ value, onChange }) {
+function StarsPicker({ value, onChange, disabled }) {
   const v = Math.max(1, Math.min(5, Number(value || 5)));
+
   return (
     <div style={styles.starsPickerRow}>
       {[1, 2, 3, 4, 5].map((n) => (
         <button
           key={n}
           type="button"
-          style={styles.starPickBtn}
-          onClick={() => onChange(n)}
+          style={{
+            ...styles.starPickBtn,
+            ...(disabled ? styles.starPickBtnDisabled : {}),
+          }}
+          onClick={() => !disabled && onChange(n)}
+          disabled={disabled}
         >
           <span
             style={{
@@ -113,7 +103,7 @@ export default function PsychicCommentsScreenWeb() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLang();
-  const { token: authToken } = useAuthWeb();
+  const { token: authToken, user } = useAuthWeb();
 
   const tr = useCallback(
     (key, vars = {}) => {
@@ -129,26 +119,11 @@ export default function PsychicCommentsScreenWeb() {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const state = location.state || {};
 
-  const psychicId =
-    state.psychicId ||
-    query.get("psychicId") ||
-    "";
+  const psychicId = state.psychicId || query.get("psychicId") || "";
+  const psychicName = state.psychicName || query.get("psychicName") || "";
+  const callId = state.callId || query.get("callId") || null;
 
-  const psychicName =
-    state.psychicName ||
-    query.get("psychicName") ||
-    "";
-
-  const callId =
-    state.callId ||
-    query.get("callId") ||
-    null;
-
-  const canRateRaw =
-    state.canRate ??
-    query.get("canRate") ??
-    false;
-
+  const canRateRaw = state.canRate ?? query.get("canRate") ?? false;
   const canRate =
     canRateRaw === true ||
     String(canRateRaw).toLowerCase() === "true" ||
@@ -162,28 +137,26 @@ export default function PsychicCommentsScreenWeb() {
   const [sending, setSending] = useState(false);
 
   const reviewedKey = useMemo(() => {
-    const myId = me?.id || me?._id;
+    const myId = me?.id || me?._id || user?.id || user?._id;
     if (!myId || !psychicId) return null;
     return `lp_reviewed_${String(myId)}_${String(psychicId)}`;
-  }, [me, psychicId]);
+  }, [me, user, psychicId]);
 
-  // =======================
-  // Load "me"
-  // =======================
   const loadMe = useCallback(async () => {
     try {
-      const meStr = lsGet("me");
+      if (user) {
+        setMe(user);
+        return;
+      }
+
+      const meStr = storageGet("me");
       if (!meStr) return;
+
       const parsed = JSON.parse(meStr);
       setMe(parsed);
-    } catch {
-      // noop
-    }
-  }, []);
+    } catch {}
+  }, [user]);
 
-  // =======================
-  // Load comments
-  // =======================
   const load = useCallback(async () => {
     try {
       if (!API_URL) throw new Error(t("psych_comments_err_no_api_url"));
@@ -191,7 +164,7 @@ export default function PsychicCommentsScreenWeb() {
 
       setLoading(true);
 
-      const token = authToken || lsGet("auth_token");
+      const token = authToken || storageGet("auth_token") || storageGet("token");
       const url = buildApiUrl(`/users/psychics/${psychicId}/reviews`);
 
       const res = await fetch(url, {
@@ -202,13 +175,14 @@ export default function PsychicCommentsScreenWeb() {
       });
 
       const json = await res.json().catch(() => ({}));
+
       if (!res.ok) {
         throw new Error(json?.message || t("psych_comments_err_load_comments"));
       }
 
       setData(json);
     } catch (e) {
-      window.alert(e?.message || t("psych_comments_err_load_comments"));
+      window.alert(`${t("psych_comments_error_title")}\n\n${e?.message || t("psych_comments_err_load_comments")}`);
     } finally {
       setLoading(false);
     }
@@ -222,16 +196,19 @@ export default function PsychicCommentsScreenWeb() {
   const reviews = Array.isArray(data?.reviews) ? data.reviews : [];
 
   const hasTextReviewForPsychic = useMemo(() => {
-    const myId = me?.id || me?._id;
+    const myId = me?.id || me?._id || user?.id || user?._id;
     if (!myId) return false;
+
     return reviews.some(
-      (r) => String(r?.user) === String(myId) && String(r?.comment || "").trim().length > 0
+      (r) =>
+        String(r?.user) === String(myId) &&
+        String(r?.comment || "").trim().length > 0
     );
-  }, [reviews, me]);
+  }, [reviews, me, user]);
 
   useEffect(() => {
     if (hasTextReviewForPsychic && reviewedKey) {
-      lsSet(reviewedKey, "1");
+      storageSet(reviewedKey, "1");
     }
   }, [hasTextReviewForPsychic, reviewedKey]);
 
@@ -240,9 +217,7 @@ export default function PsychicCommentsScreenWeb() {
       (data?.photoUrl && String(data.photoUrl).trim() !== "" ? data.photoUrl : null) ||
       (data?.photo && String(data.photo).trim() !== "" ? data.photo : null);
 
-    const fromData = resolvePhotoUrl(candidate);
-    if (fromData) return fromData;
-    return null;
+    return resolvePhotoUrl(candidate);
   }, [data?.photo, data?.photoUrl]);
 
   const submitReview = useCallback(async () => {
@@ -257,7 +232,8 @@ export default function PsychicCommentsScreenWeb() {
         return;
       }
 
-      const token = authToken || lsGet("auth_token");
+      const token = authToken || storageGet("auth_token") || storageGet("token");
+
       if (!token) {
         window.alert(
           `${t("psych_comments_session_expired_title")}\n\n${t("psych_comments_session_expired_body")}`
@@ -271,9 +247,7 @@ export default function PsychicCommentsScreenWeb() {
 
       setSending(true);
 
-      const url = buildApiUrl("/calls/rate");
-
-      const res = await fetch(url, {
+      const res = await fetch(buildApiUrl("/calls/rate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -295,7 +269,7 @@ export default function PsychicCommentsScreenWeb() {
       }
 
       if (reviewedKey && (json?.reviewAccepted || hasTextReviewForPsychic)) {
-        lsSet(reviewedKey, "1");
+        storageSet(reviewedKey, "1");
       }
 
       setComment("");
@@ -309,11 +283,22 @@ export default function PsychicCommentsScreenWeb() {
 
       await load();
     } catch (e) {
-      window.alert(e?.message || t("psych_comments_err_save_rating"));
+      window.alert(`${t("psych_comments_error_title")}\n\n${e?.message || t("psych_comments_err_save_rating")}`);
     } finally {
       setSending(false);
     }
-  }, [psychicId, callId, canRate, authToken, stars, comment, hasTextReviewForPsychic, reviewedKey, load, t]);
+  }, [
+    psychicId,
+    callId,
+    canRate,
+    authToken,
+    stars,
+    comment,
+    hasTextReviewForPsychic,
+    reviewedKey,
+    load,
+    t,
+  ]);
 
   const canRateThisConsultation = Boolean(callId && canRate);
 
@@ -325,7 +310,7 @@ export default function PsychicCommentsScreenWeb() {
     <AppLayoutWeb
       title={screenTitle}
       showBack={true}
-      backTo={location.key ? undefined : "/home"}
+      backTo="/home"
     >
       <div style={styles.container}>
         {loading ? (
@@ -350,6 +335,7 @@ export default function PsychicCommentsScreenWeb() {
                 <div style={styles.title}>
                   {data?.name || psychicName || t("psych_comments_psychic_fallback")}
                 </div>
+
                 <div style={styles.sub}>
                   ⭐ {(Number(data?.rating || 0)).toFixed(2)} ({data?.ratingsCount || 0})
                 </div>
@@ -383,7 +369,7 @@ export default function PsychicCommentsScreenWeb() {
                 <div style={styles.formTitle}>{t("psych_comments_form_title")}</div>
 
                 <div style={styles.formLabel}>{t("psych_comments_form_label_rating")}</div>
-                <StarsPicker value={stars} onChange={setStars} />
+                <StarsPicker value={stars} onChange={setStars} disabled={sending} />
 
                 <div style={styles.formLabel}>{t("psych_comments_form_label_comment")}</div>
 
@@ -396,12 +382,16 @@ export default function PsychicCommentsScreenWeb() {
                     placeholder={t("psych_comments_input_placeholder")}
                     maxLength={400}
                     style={styles.input}
+                    disabled={sending}
                   />
                 )}
 
                 <button
                   type="button"
-                  style={{ ...styles.submitBtn, ...(sending ? styles.submitBtnDisabled : {}) }}
+                  style={{
+                    ...styles.submitBtn,
+                    ...(sending ? styles.submitBtnDisabled : {}),
+                  }}
                   disabled={sending}
                   onClick={submitReview}
                 >
@@ -420,8 +410,10 @@ export default function PsychicCommentsScreenWeb() {
                       <div style={styles.user}>
                         {t("psych_comments_client_prefix")}: {shortId(item?.user)}
                       </div>
+
                       <Stars value={item?.stars} />
                     </div>
+
                     <div style={styles.comment}>
                       {item?.comment || t("psych_comments_dash")}
                     </div>
@@ -448,6 +440,7 @@ const styles = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
+    flexDirection: "column",
   },
 
   spinner: {
@@ -564,6 +557,11 @@ const styles = {
     cursor: "pointer",
   },
 
+  starPickBtnDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
+  },
+
   starPickTxt: {
     fontSize: "24px",
     lineHeight: 1,
@@ -655,7 +653,6 @@ const styles = {
   },
 };
 
-// animación spinner
 if (typeof document !== "undefined" && !document.getElementById("psychic-comments-spin-style")) {
   const style = document.createElement("style");
   style.id = "psychic-comments-spin-style";

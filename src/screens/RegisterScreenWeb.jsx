@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+// screens/RegisterScreenWeb.jsx
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../config/env.web.js";
 import AppLayoutWeb from "../components/layout/AppLayoutWeb.jsx";
@@ -8,6 +9,18 @@ import logoLp from "../assets/icon.png";
 export default function RegisterScreenWeb() {
   const navigate = useNavigate();
   const { t } = useLang();
+
+  const tt = useCallback(
+    (key, fallback) => {
+      try {
+        if (typeof t === "function") return t(key) ?? fallback;
+        return fallback;
+      } catch {
+        return fallback;
+      }
+    },
+    [t]
+  );
 
   const [name, setName] = useState("");
   const [emailOrPhone, setEmailOrPhone] = useState("");
@@ -27,14 +40,37 @@ export default function RegisterScreenWeb() {
   const normalizePhoneInput = (value) => {
     let v = String(value || "").trim();
     const hasPlus = v.startsWith("+");
+
     v = v.replace(/[^\d+]/g, "");
     v = v.replace(/\+/g, "");
+
     if (hasPlus) v = `+${v}`;
+
     return v;
   };
 
-  const isReasonableInternationalPhone = (value) =>
-    /^\+\d{8,15}$/.test(String(value || "").trim());
+  const isReasonableInternationalPhone = (value) => {
+    return /^\+\d{8,15}$/.test(String(value || "").trim());
+  };
+
+  const getDeviceId = () => {
+    try {
+      const key = "lp_web_device_id";
+      const existing = window.localStorage.getItem(key);
+
+      if (existing) return existing;
+
+      const generated =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? `web:${crypto.randomUUID()}`
+          : `web:${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+      window.localStorage.setItem(key, generated);
+      return generated;
+    } catch {
+      return "web:unknown-device";
+    }
+  };
 
   const isLikelyEmail = useMemo(() => looksLikeEmail(emailOrPhone), [emailOrPhone]);
 
@@ -48,15 +84,17 @@ export default function RegisterScreenWeb() {
     const cleanPassword = String(password || "");
 
     if (!cleanName || !rawId || !cleanPassword) {
-      setError(t("register_required_fields_body") || "Completa todos los campos.");
+      setError(tt("register_required_fields_body", "Completa todos los campos."));
       setMessage("");
       return;
     }
 
     if (!termsAccepted) {
       setError(
-        t("register_legal_body_client") ||
-          "Debes aceptar Normas y Privacidad para registrarte."
+        tt(
+          "register_legal_body_client",
+          "Debes aceptar los Términos, Privacidad y Reembolsos para registrarte."
+        )
       );
       setMessage("");
       return;
@@ -67,14 +105,28 @@ export default function RegisterScreenWeb() {
       setError("");
       setMessage("");
 
+      const deviceId = getDeviceId();
+
+      if (!deviceId) {
+        setError(
+          tt(
+            "register_device_error_body",
+            "No pudimos validar este dispositivo. Intenta cerrar y abrir la app nuevamente."
+          )
+        );
+        return;
+      }
+
       const isEmail = looksLikeEmail(rawId);
       const normalizedEmail = isEmail ? normalizeEmail(rawId) : "";
       const normalizedPhone = !isEmail ? normalizePhoneInput(rawId) : "";
 
       if (!isEmail && !isReasonableInternationalPhone(normalizedPhone)) {
         setError(
-          t("register_invalid_phone") ||
+          tt(
+            "register_phone_format_body",
             "Ingresa el teléfono en formato internacional. Ejemplo: +573001234567"
+          )
         );
         return;
       }
@@ -84,12 +136,11 @@ export default function RegisterScreenWeb() {
         password: cleanPassword,
         role: "cliente",
         termsAccepted,
+        deviceId,
         ...(isEmail ? { email: normalizedEmail } : { phone: normalizedPhone }),
       };
 
-      const url = `${API_BASE_URL}/users/register`;
-
-      const res = await fetch(url, {
+      const res = await fetch(`${API_BASE_URL}/users/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -101,28 +152,32 @@ export default function RegisterScreenWeb() {
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error(text.slice(0, 150) || "Error inesperado del servidor.");
+        throw new Error(
+          text.slice(0, 150) ||
+            tt("server_unexpected_error", "Error inesperado del servidor.")
+        );
       }
 
       if (!res.ok) {
-        throw new Error(data?.message || "Error al registrar cuenta.");
+        throw new Error(
+          data?.message || tt("register_account_error", "Error al registrar cuenta.")
+        );
       }
 
       setMessage(
-        t("register_success_body") ||
-          "Tu cuenta fue registrada correctamente. Ahora puedes iniciar sesión."
+        tt(
+          "register_success_body_trial",
+          "Tu cuenta fue registrada correctamente. Recibiste 5 minutos de bienvenida. Inicia sesión."
+        )
       );
-      setError("");
 
       setTimeout(() => {
-        navigate("/", { replace: true });
+        navigate("/login", { replace: true });
       }, 1400);
     } catch (err) {
       console.log("[RegisterScreenWeb] Register error:", err);
       setError(
-        err?.message ||
-          t("register_login_error_fallback") ||
-          "No se pudo registrar la cuenta."
+        err?.message || tt("register_failed_msg", "No se pudo registrar la cuenta.")
       );
       setMessage("");
     } finally {
@@ -132,9 +187,9 @@ export default function RegisterScreenWeb() {
 
   return (
     <AppLayoutWeb
-      title={t("register_header_title") || "Registro"}
+      title={tt("register_header_title", "Registro")}
       showBack={true}
-      backTo="/"
+      backTo="/login"
     >
       <div style={styles.content}>
         <div style={styles.card}>
@@ -143,17 +198,16 @@ export default function RegisterScreenWeb() {
           </div>
 
           <h1 style={styles.title}>
-            {t("register_title_create_account") || "Crear Cuenta"}
+            {tt("register_title_create_account", "Crear Cuenta")}
           </h1>
 
           <p style={styles.subtitle}>
-            {t("register_subtitle_client") ||
-              "Regístrate como cliente para continuar"}
+            {tt("register_subtitle_client", "Regístrate como cliente para continuar")}
           </p>
 
           <input
             type="text"
-            placeholder={t("register_placeholder_full_name") || "Nombre completo"}
+            placeholder={tt("register_placeholder_full_name", "Nombre completo")}
             value={name}
             onChange={(e) => setName(e.target.value)}
             style={styles.input}
@@ -162,29 +216,33 @@ export default function RegisterScreenWeb() {
 
           <input
             type="text"
-            placeholder={
-              t("register_placeholder_email_or_phone") || "Correo o teléfono"
-            }
+            placeholder={tt("register_placeholder_email_or_phone", "Correo o teléfono")}
             value={emailOrPhone}
             onChange={(e) => setEmailOrPhone(e.target.value)}
             style={styles.input}
             disabled={busy}
+            autoCapitalize="none"
+            autoCorrect="off"
+            inputMode={isLikelyEmail ? "email" : "text"}
           />
 
           <p style={styles.helperText}>
-            {t("register_phone_helper") ||
-              "Si usas teléfono, ingrésalo en formato internacional (ej. +573002568974)."}
+            {tt(
+              "register_phone_helper",
+              "Si usas teléfono, escríbelo en formato internacional. Ejemplo: +573001234567"
+            )}
           </p>
 
           <div style={styles.passwordWrap}>
             <input
               type={showPassword ? "text" : "password"}
-              placeholder={t("register_placeholder_password") || "Contraseña"}
+              placeholder={tt("register_placeholder_password", "Contraseña")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={styles.passwordInput}
               disabled={busy}
             />
+
             <button
               type="button"
               style={styles.eyeBtn}
@@ -192,19 +250,39 @@ export default function RegisterScreenWeb() {
               disabled={busy}
               aria-label={
                 showPassword
-                  ? t("register_accessibility_hide_password") ||
-                    "Ocultar contraseña"
-                  : t("register_accessibility_show_password") ||
-                    "Mostrar contraseña"
+                  ? tt("register_accessibility_hide_password", "Ocultar contraseña")
+                  : tt("register_accessibility_show_password", "Mostrar contraseña")
+              }
+              title={
+                showPassword
+                  ? tt("register_accessibility_hide_password", "Ocultar contraseña")
+                  : tt("register_accessibility_show_password", "Mostrar contraseña")
               }
             >
               {showPassword ? "🙈" : "👁️"}
             </button>
           </div>
 
+          <button
+            type="button"
+            style={styles.psychicLinkBtn}
+            onClick={() => navigate("/psychic-register")}
+            disabled={busy}
+          >
+            {tt(
+              "register_link_psychic_apply",
+              "¿Eres psíquico? Postúlate para trabajar con nosotros"
+            )}
+          </button>
+
           <div
-            style={styles.termsRow}
+            style={{
+              ...styles.termsRow,
+              ...(busy ? styles.disabled : {}),
+            }}
             onClick={() => !busy && setTermsAccepted((v) => !v)}
+            role="checkbox"
+            aria-checked={termsAccepted}
           >
             <div
               style={{
@@ -216,7 +294,7 @@ export default function RegisterScreenWeb() {
             </div>
 
             <span style={styles.termsText}>
-              {t("register_terms_prefix") || "He leído y acepto"}{" "}
+              {tt("register_terms_prefix", "He leído y acepto")}{" "}
               <button
                 type="button"
                 style={styles.inlineLinkBtn}
@@ -224,8 +302,9 @@ export default function RegisterScreenWeb() {
                   e.stopPropagation();
                   navigate("/legal");
                 }}
+                disabled={busy}
               >
-                {t("register_terms_link") || "Normas y Privacidad"}
+                {tt("register_terms_link", "Normas y Privacidad")}
               </button>
               .
             </span>
@@ -235,6 +314,7 @@ export default function RegisterScreenWeb() {
           {!!error && <div style={styles.errorBox}>{error}</div>}
 
           <button
+            type="button"
             style={{
               ...styles.button,
               ...(!termsAccepted || busy ? styles.buttonDisabled : {}),
@@ -243,17 +323,17 @@ export default function RegisterScreenWeb() {
             disabled={busy || !termsAccepted}
           >
             {busy
-              ? t("register_creating_account") || "Creando cuenta..."
-              : t("register_btn_create_account") || "Crear cuenta"}
+              ? tt("register_creating_account", "Creando cuenta...")
+              : tt("register_btn_create_account", "Crear cuenta")}
           </button>
 
           <button
-            onClick={() => navigate("/", { replace: true })}
+            type="button"
+            onClick={() => navigate("/login", { replace: true })}
             style={styles.linkBtn}
             disabled={busy}
           >
-            {t("register_link_have_account_login") ||
-              "¿Ya tienes cuenta? Inicia sesión"}
+            {tt("register_link_have_account_login", "¿Ya tienes cuenta? Inicia sesión")}
           </button>
         </div>
       </div>
@@ -359,6 +439,19 @@ const styles = {
     fontSize: "18px",
     height: "100%",
     color: "#4A148C",
+  },
+
+  psychicLinkBtn: {
+    marginTop: "2px",
+    marginBottom: "18px",
+    width: "100%",
+    border: "none",
+    background: "transparent",
+    color: "#6b3dbf",
+    fontWeight: 700,
+    fontSize: "14px",
+    textDecoration: "underline",
+    cursor: "pointer",
   },
 
   termsRow: {

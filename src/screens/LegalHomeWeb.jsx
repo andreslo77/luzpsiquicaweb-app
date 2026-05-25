@@ -9,6 +9,14 @@ export default function LegalHomeWeb() {
   const navigate = useNavigate();
   const { t } = useLang();
 
+  const safeBack = () => {
+    try {
+      navigate(-1);
+    } catch {
+      navigate("/home");
+    }
+  };
+
   return (
     <AppLayoutWeb
       title={t("legal_home_header_title")}
@@ -30,6 +38,7 @@ export default function LegalHomeWeb() {
           <div style={styles.cardTitle}>
             {t("legal_home_card_privacy_title")}
           </div>
+
           <div style={styles.cardDesc}>
             {t("legal_home_card_privacy_desc")}
           </div>
@@ -42,9 +51,18 @@ export default function LegalHomeWeb() {
           <div style={styles.cardTitle}>
             {t("legal_home_card_operational_title")}
           </div>
+
           <div style={styles.cardDesc}>
             {t("legal_home_card_operational_desc")}
           </div>
+        </button>
+
+        {/* ✅ Botón volver extra */}
+        <button
+          style={styles.backBtn}
+          onClick={safeBack}
+        >
+          {t("common_back")}
         </button>
       </div>
     </AppLayoutWeb>
@@ -94,5 +112,18 @@ const styles = {
     fontSize: "14px",
     color: "#555",
     lineHeight: "1.4",
+  },
+
+  backBtn: {
+    marginTop: "4px",
+    width: "100%",
+    background: "#6C63FF",
+    color: "#FFFFFF",
+    border: "none",
+    borderRadius: "12px",
+    padding: "14px",
+    fontWeight: "800",
+    fontSize: "15px",
+    cursor: "pointer",
   },
 };

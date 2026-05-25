@@ -1,6 +1,7 @@
 // frontend/src/screens/LegalNormsWeb.jsx
 
 import React, { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import AppLayoutWeb from "../components/layout/AppLayoutWeb.jsx";
 import { useLang } from "../context/LanguageContext.jsx";
 
@@ -13,6 +14,7 @@ const WHATSAPP_NUMBER = "+18136187770";
 const PRIVACY_POLICY_URL = "https://luzpsiquica.com/en/legal/normas-y-privacidad";
 
 export default function LegalNormsWeb() {
+  const navigate = useNavigate();
   const { t } = useLang();
 
   const tx = (key, fallback, vars = {}) => {
@@ -31,9 +33,11 @@ export default function LegalNormsWeb() {
       return text;
     } catch {
       let text = fallback;
+
       Object.keys(vars).forEach((k) => {
         text = text.replaceAll(`{{${k}}}`, String(vars[k]));
       });
+
       return text;
     }
   };
@@ -47,29 +51,47 @@ export default function LegalNormsWeb() {
     const subject = encodeURIComponent(
       tx("legal.mailSubject", "Consulta legal - Luz Psíquica")
     );
+
     return `mailto:${LEGAL_EMAIL}?subject=${subject}`;
   }, [t]);
 
   const openExternal = (primaryUrl, fallbackUrl = null, failMessage = null) => {
     try {
       const win = window.open(primaryUrl, "_blank", "noopener,noreferrer");
+
       if (win) return;
 
       if (fallbackUrl) {
-        const fallbackWin = window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        const fallbackWin = window.open(
+          fallbackUrl,
+          "_blank",
+          "noopener,noreferrer"
+        );
+
         if (fallbackWin) return;
       }
 
-      window.alert(failMessage || tx("legal.openFailGeneric", "No fue posible abrir el enlace."));
+      window.alert(
+        failMessage ||
+          tx("legal.openFailGeneric", "No fue posible abrir el enlace.")
+      );
     } catch {
       if (fallbackUrl) {
         try {
-          const fallbackWin = window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+          const fallbackWin = window.open(
+            fallbackUrl,
+            "_blank",
+            "noopener,noreferrer"
+          );
+
           if (fallbackWin) return;
         } catch {}
       }
 
-      window.alert(failMessage || tx("legal.openFailGeneric", "No fue posible abrir el enlace."));
+      window.alert(
+        failMessage ||
+          tx("legal.openFailGeneric", "No fue posible abrir el enlace.")
+      );
     }
   };
 
@@ -90,7 +112,10 @@ export default function LegalNormsWeb() {
     openExternal(
       whatsappWaMeUrl,
       null,
-      tx("legal.whatsappFailMessage", "No fue posible abrir WhatsApp en este momento.")
+      tx(
+        "legal.whatsappFailMessage",
+        "No fue posible abrir WhatsApp en este momento."
+      )
     );
   };
 
@@ -98,8 +123,19 @@ export default function LegalNormsWeb() {
     openExternal(
       PRIVACY_POLICY_URL,
       null,
-      tx("legal.openFailGeneric", "No fue posible abrir el documento solicitado.")
+      tx(
+        "legal.openFailGeneric",
+        "No fue posible abrir el documento solicitado."
+      )
     );
+  };
+
+  const safeBack = () => {
+    try {
+      navigate(-1);
+    } catch {
+      navigate("/legal");
+    }
   };
 
   const sections = [
@@ -219,35 +255,63 @@ export default function LegalNormsWeb() {
         {sections.map((section) => (
           <div key={section.title} style={styles.section}>
             <h2 style={styles.h2}>{section.title}</h2>
+
             <p style={styles.p}>{section.body}</p>
 
-            {section.title === tx("legal.s4Title", "4. Privacidad y tratamiento de datos") && (
+            {section.title ===
+              tx(
+                "legal.s4Title",
+                "4. Privacidad y tratamiento de datos"
+              ) && (
               <div style={styles.inlineLinkWrap}>
                 <button
                   type="button"
                   style={styles.inlineLinkBtn}
                   onClick={openPrivacyPolicy}
                 >
-                  {tx("legal.cameraLinkText", "Ver política de privacidad")}
+                  {tx(
+                    "legal.cameraLinkText",
+                    "Ver política de privacidad"
+                  )}
                 </button>
               </div>
             )}
 
-            {section.title === tx("legal.s12Title", "12. Contacto") && (
+            {section.title ===
+              tx("legal.s12Title", "12. Contacto") && (
               <div style={styles.actions}>
-                <button type="button" style={styles.actionBtn} onClick={openEmail}>
+                <button
+                  type="button"
+                  style={styles.actionBtn}
+                  onClick={openEmail}
+                >
                   {tx("legal.emailLabel", `Email: ${LEGAL_EMAIL}`, {
                     email: LEGAL_EMAIL,
                   })}
                 </button>
 
-                <button type="button" style={styles.actionBtn} onClick={openWhatsApp}>
-                  {tx("legal.whatsappLabel", "WhatsApp: +1 (813) 618-7770")}
+                <button
+                  type="button"
+                  style={styles.actionBtn}
+                  onClick={openWhatsApp}
+                >
+                  {tx(
+                    "legal.whatsappLabel",
+                    "Contactar por WhatsApp"
+                  )}
                 </button>
               </div>
             )}
           </div>
         ))}
+
+        <button
+          type="button"
+          style={styles.backBtn}
+          onClick={safeBack}
+        >
+          {tx("common.back", "Volver")}
+        </button>
       </div>
     </AppLayoutWeb>
   );
@@ -331,6 +395,19 @@ const styles = {
     color: "#4A148C",
     fontWeight: 800,
     fontSize: "14px",
+    cursor: "pointer",
+  },
+
+  backBtn: {
+    marginTop: "6px",
+    marginBottom: "10px",
+    background: "#6C63FF",
+    color: "#FFFFFF",
+    border: "none",
+    borderRadius: "12px",
+    padding: "14px",
+    fontWeight: 900,
+    fontSize: "16px",
     cursor: "pointer",
   },
 };

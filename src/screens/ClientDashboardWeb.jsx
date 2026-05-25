@@ -5,8 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthWeb } from '../context/AuthContextWeb';
 import { useLang } from '../context/LanguageContext';
 import AppLayoutWeb from '../components/layout/AppLayoutWeb.jsx';
-
-// ✅ ÚNICA fuente de verdad para backend (incluye /api y normaliza slashes)
 import { API_BASE_URL } from '../config/env.web.js';
 
 function prettyStatus(status, t) {
@@ -35,7 +33,7 @@ function getPsychicDisplayName(p, t) {
 
 export default function ClientDashboardWeb() {
   const navigate = useNavigate();
-  const { user, token, logout } = useAuthWeb();
+  const { user, token, logout, refreshMe } = useAuthWeb();
   const { t } = useLang();
 
   const tr = (key, vars = {}) => {
@@ -129,18 +127,30 @@ export default function ClientDashboardWeb() {
     }
   }, [navigate, t, token, logout]);
 
+  const refreshDashboard = useCallback(async () => {
+    try {
+      if (typeof refreshMe === 'function') {
+        await refreshMe();
+      }
+    } catch (_) {
+      // noop
+    }
+
+    await fetchData();
+  }, [refreshMe, fetchData]);
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    refreshDashboard();
+  }, [refreshDashboard]);
 
   useEffect(() => {
     const handleFocus = () => {
-      fetchData();
+      refreshDashboard();
     };
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        fetchData();
+        refreshDashboard();
       }
     };
 
@@ -151,7 +161,7 @@ export default function ClientDashboardWeb() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [fetchData]);
+  }, [refreshDashboard]);
 
   const handleGoToDirectCall = () => {
     navigate('/home');
@@ -221,11 +231,7 @@ export default function ClientDashboardWeb() {
     !loading && hasMinutesValue && minutesNum > 0 && minutesNum <= lowMinutesThreshold;
 
   return (
-    <AppLayoutWeb
-      title={t('clientdash_header_title')}
-      showBack={true}
-      backTo="/home"
-    >
+    <AppLayoutWeb title={t('clientdash_header_title')} showBack={true} backTo="/home">
       <div style={styles.content}>
         <div style={styles.heroCard}>
           <div style={styles.kicker}>{t('clientdash_brand_kicker')}</div>
@@ -237,6 +243,15 @@ export default function ClientDashboardWeb() {
             <div style={styles.heroMinutesValue}>{minutes !== null ? minutes : '—'}</div>
           </div>
         </div>
+
+        {user?.trialGranted && user?.trialUsed !== true && (
+          <div style={styles.trialBox}>
+            <div style={styles.trialTitle}>🎁 {t('clientdash_trial_title')}</div>
+            <div style={styles.trialBody}>
+              {tr('clientdash_trial_body', { n: user?.trialMinutesRemaining || 0 })}
+            </div>
+          </div>
+        )}
 
         <div style={styles.statsGrid}>
           <div style={styles.statCard}>
@@ -386,11 +401,7 @@ export default function ClientDashboardWeb() {
             <div style={styles.deleteTitle}>{t('clientdash_delete_account_title')}</div>
             <div style={styles.deleteBody}>{t('clientdash_delete_account_body')}</div>
 
-            <button
-              type="button"
-              style={styles.deleteBtn}
-              onClick={handleDeleteAccount}
-            >
+            <button type="button" style={styles.deleteBtn} onClick={handleDeleteAccount}>
               {t('clientdash_delete_account_cta')}
             </button>
           </div>
@@ -454,6 +465,29 @@ const styles = {
     fontSize: '22px',
     fontWeight: 800,
     lineHeight: 1,
+  },
+
+  trialBox: {
+    background: '#F3E8FF',
+    borderRadius: '14px',
+    padding: '14px',
+    marginBottom: '12px',
+    border: '1px solid #D8B4FE',
+    boxShadow: '0 2px 8px rgba(60, 20, 110, 0.06)',
+  },
+
+  trialTitle: {
+    color: '#6B21A8',
+    fontWeight: 900,
+    marginBottom: '6px',
+    fontSize: '14px',
+  },
+
+  trialBody: {
+    color: '#4C1D95',
+    fontWeight: 700,
+    lineHeight: 1.45,
+    fontSize: '14px',
   },
 
   statsGrid: {

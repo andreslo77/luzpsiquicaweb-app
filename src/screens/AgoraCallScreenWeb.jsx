@@ -1,5 +1,5 @@
 // screens/AgoraCallScreenWeb.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import { API_BASE_URL } from "../config/env.web.js";
@@ -30,6 +30,12 @@ function buildRootUrl() {
   return API_URL.replace(/\/api$/, "");
 }
 
+function showAlert(title, message) {
+  const safeTitle = title || "Aviso";
+  const safeMessage = message || "";
+  window.alert(`${safeTitle}\n\n${safeMessage}`);
+}
+
 export default function AgoraCallScreenWeb() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -46,9 +52,10 @@ export default function AgoraCallScreenWeb() {
   const pollRef = useRef(null);
   const closingRef = useRef(false);
 
-  const [socketStatus, setSocketStatus] = useState(t("agora_socket_connecting") || "Conectando…");
+  const [socketStatus, setSocketStatus] = useState(
+    t("agora_socket_connecting") || "Conectando…"
+  );
   const [lastStatus, setLastStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   const name = useMemo(() => {
     return (
@@ -60,40 +67,57 @@ export default function AgoraCallScreenWeb() {
     );
   }, [psychic, t]);
 
-  const closeCallUI = (payload = {}) => {
-    if (closingRef.current) return;
-    closingRef.current = true;
+  const closeCallUI = useCallback(
+    (payload = {}) => {
+      if (closingRef.current) return;
+      closingRef.current = true;
 
-    const status = payload?.status || "finished";
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
 
-    let msg = t("call_end_default") || "La llamada finalizó.";
-    if (status === "missed") msg = t("call_end_missed") || "La llamada fue rechazada/perdida.";
-    if (status === "cancelled") {
-      msg = t("call_end_cancelled") || "La llamada fue cancelada (sin cobro).";
-    }
-    if (status === "caller_hungup") {
-      msg = t("call_end_caller_hungup") || "El cliente colgó la llamada.";
-    }
+      const status = payload?.status || "finished";
 
-    window.alert(msg);
-    navigate(-1);
-  };
+      let msg = t("call_end_default") || "La llamada finalizó.";
+      if (status === "missed") {
+        msg = t("call_end_missed") || "La llamada fue rechazada/perdida.";
+      }
+      if (status === "cancelled") {
+        msg = t("call_end_cancelled") || "La llamada fue cancelada.";
+      }
+      if (status === "caller_hungup") {
+        msg = t("call_end_caller_hungup") || "El cliente colgó la llamada.";
+      }
+
+      showAlert(t("call_end_title") || "Llamada finalizada", msg);
+      navigate(-1);
+    },
+    [navigate, t]
+  );
 
   useEffect(() => {
     if (!API_URL) {
-      window.alert(t("cfg_error_body") || "No se ha configurado EXPO_PUBLIC_API_URL.");
+      showAlert(
+        t("cfg_error_title") || "Error de configuración",
+        t("cfg_error_body") || "No se ha configurado la URL del backend."
+      );
       navigate(-1);
       return;
     }
 
     if (!callId) {
-      window.alert(t("error_no_callid") || "No se recibió callId.");
+      showAlert(
+        t("error_title") || "Error",
+        t("error_no_callid") || "No se recibió callId."
+      );
       navigate(-1);
       return;
     }
 
     if (!user?._id && !user?.id) {
-      window.alert(
+      showAlert(
+        t("session_expired_title") || "Sesión expirada",
         t("session_expired_body") || "No se encontró el usuario autenticado."
       );
       navigate(-1);
@@ -155,7 +179,7 @@ export default function AgoraCallScreenWeb() {
         // noop
       }
     };
-  }, [callId, navigate, t, user]);
+  }, [callId, closeCallUI, navigate, t, user]);
 
   useEffect(() => {
     if (!API_URL || !callId) return;
@@ -192,7 +216,7 @@ export default function AgoraCallScreenWeb() {
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = null;
     };
-  }, [callId, token]);
+  }, [callId, closeCallUI, token]);
 
   const onBackPress = () => {
     navigate(-1);
@@ -246,8 +270,6 @@ export default function AgoraCallScreenWeb() {
               </div>
             ) : null}
           </div>
-
-          {loading ? <div style={styles.loading}>...</div> : null}
 
           <button type="button" onClick={onBackPress} style={styles.btn}>
             {t("agora_back") || "Volver"}
@@ -337,14 +359,6 @@ const styles = {
     color: PRIMARY,
     fontWeight: 700,
     fontSize: "13px",
-  },
-
-  loading: {
-    marginTop: "10px",
-    marginBottom: "6px",
-    textAlign: "center",
-    color: PRIMARY,
-    fontWeight: 700,
   },
 
   btn: {

@@ -1,6 +1,7 @@
 // frontend/src/screens/LegalOperationalWeb.jsx
 
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import AppLayoutWeb from "../components/layout/AppLayoutWeb.jsx";
 import { useLang } from "../context/LanguageContext.jsx";
 
@@ -9,6 +10,7 @@ const DOC_DATE = "2026-01-07";
 const DOC_PLATFORM = "Aplicación web Luz Psíquica";
 
 export default function LegalOperationalWeb() {
+  const navigate = useNavigate();
   const { t } = useLang();
 
   const tx = (key, fallback, vars = {}) => {
@@ -34,6 +36,14 @@ export default function LegalOperationalWeb() {
     }
   };
 
+  const safeBack = () => {
+    try {
+      navigate(-1);
+    } catch {
+      navigate("/legal");
+    }
+  };
+
   const operativeSections = [
     {
       heading: tx("operational.s1Heading", "1. Alcance del documento"),
@@ -49,7 +59,6 @@ export default function LegalOperationalWeb() {
         "Luz Psíquica opera como una plataforma tecnológica que conecta usuarios con psíquicos disponibles. La plataforma puede ofrecer funciones como registro, inicio de sesión, compra de minutos, chat, llamadas, historial y soporte relacionado con la operación."
       ),
     },
-
     {
       heading: tx("operational.s3Heading", "3. Registro y acceso"),
       body: "",
@@ -75,7 +84,6 @@ export default function LegalOperationalWeb() {
         "Cada usuario debe mantener la confidencialidad de sus datos de acceso. Luz Psíquica podrá implementar mecanismos de autenticación, validación y protección para reforzar la seguridad operativa."
       ),
     },
-
     {
       heading: tx("operational.s4Heading", "4. Psíquicos y disponibilidad"),
       body: "",
@@ -101,7 +109,6 @@ export default function LegalOperationalWeb() {
         "La interacción entre usuarios y psíquicos debe mantenerse dentro del entorno previsto por la plataforma. No está permitido utilizar los canales del servicio para vulnerar normas, compartir información prohibida o evadir controles operativos."
       ),
     },
-
     {
       heading: tx("operational.s5Heading", "5. Compra y uso de minutos"),
       body: "",
@@ -127,7 +134,6 @@ export default function LegalOperationalWeb() {
         "Todas las compras de minutos son finales y no reembolsables, salvo supuestos excepcionales de falla técnica comprobable atribuible directamente a la plataforma. Los minutos adquiridos no pueden ser retirados, convertidos en dinero, transferidos a terceros ni reclamados como devolución por falta de uso voluntario del servicio. El no uso total o parcial de los minutos no genera derecho a reembolso, compensación, indemnización ni reconocimiento económico de ninguna naturaleza. En caso de incidente técnico validado por Luz Psíquica, cualquier medida correctiva se limitará estrictamente a un ajuste técnico interno o a la reposición proporcional del servicio, sin obligación de devolución monetaria."
       ),
     },
-
     {
       heading: tx("operational.s6Heading", "6. Llamadas y chat"),
       body: "",
@@ -139,7 +145,6 @@ export default function LegalOperationalWeb() {
         "Las comunicaciones dentro de la plataforma deben respetar normas de convivencia, seguridad y legalidad. Luz Psíquica podrá limitar, interrumpir o registrar eventos técnicos relacionados con una sesión cuando sea necesario para soporte, auditoría o cumplimiento."
       ),
     },
-
     {
       heading: tx("operational.s7Heading", "7. Fallas técnicas y disponibilidad"),
       body: "",
@@ -151,7 +156,6 @@ export default function LegalOperationalWeb() {
         "La plataforma podrá experimentar interrupciones por mantenimiento, actualizaciones, errores de terceros, conectividad o eventos no controlados. Luz Psíquica realizará esfuerzos razonables para restablecer el servicio, sin garantizar continuidad absoluta."
       ),
     },
-
     {
       heading: tx("operational.s8Heading", "8. Restricciones y medidas operativas"),
       body: "",
@@ -191,7 +195,6 @@ export default function LegalOperationalWeb() {
         "Las solicitudes de soporte serán atendidas conforme a la capacidad operativa de la plataforma. Los casos relacionados con pagos, sesiones, comportamiento indebido o fallas técnicas podrán requerir revisión manual. Luz Psíquica podrá rechazar reclamaciones cuando detecte indicios de fraude, abuso, intento de elusión de controles o uso contrario a las reglas del servicio."
       ),
     },
-
     {
       heading: tx("operational.s9Heading", "9. Pagos y proveedores externos"),
       body: tx(
@@ -252,6 +255,10 @@ export default function LegalOperationalWeb() {
             {section.body ? <p style={styles.p}>{section.body}</p> : null}
           </div>
         ))}
+
+        <button type="button" style={styles.backBtn} onClick={safeBack}>
+          {tx("common.back", "Volver")}
+        </button>
       </div>
     </AppLayoutWeb>
   );
@@ -301,5 +308,18 @@ const styles = {
     fontSize: "14px",
     margin: 0,
     whiteSpace: "pre-wrap",
+  },
+
+  backBtn: {
+    marginTop: "6px",
+    marginBottom: "10px",
+    background: "#6C63FF",
+    color: "#FFFFFF",
+    border: "none",
+    borderRadius: "12px",
+    padding: "14px",
+    fontWeight: 900,
+    fontSize: "16px",
+    cursor: "pointer",
   },
 };

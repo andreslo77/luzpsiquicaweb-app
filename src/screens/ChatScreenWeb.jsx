@@ -23,6 +23,13 @@ function buildApiUrl(path) {
   return `${API_URL}${p}`;
 }
 
+function normalizeRole(r) {
+  const x = String(r || "").toLowerCase().trim();
+  if (x === "psíquico" || x === "psiquico" || x === "psychic") return "psiquico";
+  if (x === "cliente" || x === "client") return "cliente";
+  return x;
+}
+
 function toIso(v) {
   if (!v) return new Date().toISOString();
   if (v instanceof Date) return v.toISOString();
@@ -76,6 +83,7 @@ function detectPersonalInfoQuick(text) {
   const phoneRegex = /(\+?\d[\d\s\-().]{6,}\d)/g;
   let hasPhone = false;
   let m;
+
   while ((m = phoneRegex.exec(t)) !== null) {
     const raw = m[0];
     const digits = raw.replace(/\D/g, "");
@@ -111,6 +119,7 @@ function detectPersonalInfoQuick(text) {
     ].join("|"),
     "i"
   );
+
   const hasAddress = softKeywordRegex.test(t) && /\d/.test(t);
 
   return { hasAny: hasPhone || hasEmail || hasAddress, hasPhone, hasEmail, hasAddress };
@@ -122,23 +131,39 @@ function startOfDayMs(ts) {
   return d.getTime();
 }
 
-function formatDayHeader(ts) {
+function getLocaleFromLang(langCode) {
+  const code = String(langCode || "es").toLowerCase();
+  if (code === "es") return "es-ES";
+  if (code === "en") return "en-US";
+  if (code === "fr") return "fr-FR";
+  if (code === "de") return "de-DE";
+  if (code === "pt") return "pt-BR";
+  if (code === "it") return "it-IT";
+  return "es-ES";
+}
+
+function capitalizeFirst(s) {
+  const str = String(s || "");
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function formatDayHeaderIntl(ts, locale) {
   try {
-    return new Date(ts)
-      .toLocaleDateString("es-ES", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-      })
-      .replace(/^./, (c) => c.toUpperCase());
+    const raw = new Date(ts).toLocaleDateString(locale, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+    return capitalizeFirst(raw);
   } catch {
     return "";
   }
 }
 
-function formatTimeShort(ts) {
+function formatTimeShortIntl(ts, locale) {
   try {
-    return new Date(ts).toLocaleTimeString("es-ES", {
+    return new Date(ts).toLocaleTimeString(locale, {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -149,11 +174,13 @@ function formatTimeShort(ts) {
 
 function normalizeMessages(rawList, myId) {
   if (!Array.isArray(rawList)) return [];
+
   return rawList.map((m) => {
     const sender = String(m.senderId || m.sender || "");
     const receiver = String(m.receiverId || m.receiver || "");
     const ts = toIso(m.createdAt || m.timestamp || Date.now());
     const idd = String(m._id || `${sender}-${ts}`);
+
     return {
       id: idd,
       text: m.text || "",
@@ -169,15 +196,59 @@ export default function ChatScreenWeb() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, token, refreshMe } = useAuthWeb();
-  const { t } = useLang();
+  const { t, lang } = useLang();
+
+  const tr = useCallback(
+    (key, vars = {}) => {
+      let s = String(t(key));
+      Object.keys(vars).forEach((k) => {
+        s = s.replaceAll(`{{${k}}}`, String(vars[k]));
+      });
+      return s;
+    },
+    [t]
+  );
 
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
-  const otherUserId = String(query.get("otherUserId") || "").trim();
-  const otherUserName = String(query.get("otherUserName") || t("chat_other_psychic")).trim();
-  const otherUserAvailable = String(query.get("otherUserAvailable") || "") === "true";
+  const otherUserId = String(
+    query.get("otherUserId") ||
+      query.get("otherId") ||
+      query.get("chatWithId") ||
+      query.get("chatUserId") ||
+      query.get("toUserId") ||
+      query.get("psychicId") ||
+      query.get("clientId") ||
+      ""
+  ).trim();
+
+  const otherUserName = String(
+    query.get("otherUserName") ||
+      query.get("otherName") ||
+      query.get("psychicName") ||
+      query.get("clientName") ||
+      t("chat_other_psychic")
+  ).trim();
+
+  const otherUserAvailableRaw =
+    query.get("otherUserAvailable") ??
+    query.get("isOtherAvailable") ??
+    query.get("available") ??
+    query.get("psychicAvailable");
+
+  const resolvedOtherAvailable = useMemo(() => {
+    if (otherUserAvailableRaw === null || otherUserAvailableRaw === undefined || otherUserAvailableRaw === "") {
+      return null;
+    }
+
+    if (String(otherUserAvailableRaw).toLowerCase() === "true") return true;
+    if (String(otherUserAvailableRaw).toLowerCase() === "false") return false;
+
+    return null;
+  }, [otherUserAvailableRaw]);
 
   const myId = String(user?._id || user?.id || "").trim();
+  const myRole = useMemo(() => normalizeRole(user?.role), [user?.role]);
   const myMinutes = Number(user?.minutes || 0);
 
   const [messages, setMessages] = useState([]);
@@ -188,12 +259,25 @@ export default function ChatScreenWeb() {
   const [policyError, setPolicyError] = useState("");
   const [serverBlock, setServerBlock] = useState({ blocked: false, code: "", message: "" });
 
+  const [warningVisible, setWarningVisible] = useState(false);
+  const [warningLeftSec, setWarningLeftSec] = useState(30);
+  const [timedOut, setTimedOut] = useState(false);
+
   const listRef = useRef(null);
+  const inactivityStartRef = useRef(Date.now());
+  const tickRef = useRef(null);
 
-  const chatReady = !!token && !!myId && !!otherUserId;
+  const chatReady = !!API_URL && !!token && !!myId && !!otherUserId;
 
-  const isSendBlockedByAvailability = !otherUserAvailable;
-  const isSendBlockedByMinutes = myMinutes <= 0;
+  const isSendBlockedByAvailability = useMemo(() => {
+    if (myRole !== "cliente") return false;
+    return resolvedOtherAvailable === false;
+  }, [myRole, resolvedOtherAvailable]);
+
+  const isSendBlockedByMinutes = useMemo(() => {
+    if (myRole !== "cliente") return false;
+    return myMinutes <= 0;
+  }, [myRole, myMinutes]);
 
   const missingBits = useMemo(() => {
     const missing = [];
@@ -204,6 +288,76 @@ export default function ChatScreenWeb() {
     return missing.join(", ");
   }, [myId, otherUserId, token]);
 
+  const stopInactivityTick = useCallback(() => {
+    if (tickRef.current) {
+      clearInterval(tickRef.current);
+      tickRef.current = null;
+    }
+  }, []);
+
+  const resetInactivity = useCallback(() => {
+    inactivityStartRef.current = Date.now();
+    setTimedOut(false);
+    setWarningVisible(false);
+    setWarningLeftSec(30);
+  }, []);
+
+  const startInactivityTick = useCallback(() => {
+    stopInactivityTick();
+
+    tickRef.current = setInterval(() => {
+      const elapsed = Date.now() - inactivityStartRef.current;
+      const totalMs = 60_000;
+      const warningMs = 30_000;
+
+      if (elapsed >= totalMs) {
+        setTimedOut(true);
+        setWarningVisible(false);
+        stopInactivityTick();
+        return;
+      }
+
+      const warnAt = totalMs - warningMs;
+
+      if (elapsed >= warnAt) {
+        const left = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+        setWarningVisible(true);
+        setWarningLeftSec(left);
+      } else {
+        setWarningVisible(false);
+        setWarningLeftSec(30);
+      }
+    }, 1000);
+  }, [stopInactivityTick]);
+
+  useEffect(() => {
+    resetInactivity();
+    startInactivityTick();
+
+    return () => {
+      stopInactivityTick();
+    };
+  }, [resetInactivity, startInactivityTick, stopInactivityTick]);
+
+  const onAnyChatActivity = useCallback(() => {
+    resetInactivity();
+    startInactivityTick();
+  }, [resetInactivity, startInactivityTick]);
+
+  const inactivityWarningText = useMemo(() => {
+    let msg = tr("chat_inactivity_warning", {
+      sec: warningLeftSec,
+      seconds: warningLeftSec,
+      s: warningLeftSec,
+    });
+
+    if (!/\d/.test(msg)) {
+      msg = `${t("chat_inactivity_warning_prefix") || "Este chat se pausará por inactividad en"} ${warningLeftSec} s.`;
+    }
+
+    return msg;
+  }, [tr, t, warningLeftSec]);
+
   const loadHistory = useCallback(
     async (mode = "initial") => {
       if (!chatReady) {
@@ -211,8 +365,10 @@ export default function ChatScreenWeb() {
         return;
       }
 
+      const showBigLoader = mode === "initial" && messages.length === 0;
+
       try {
-        if (mode === "initial") setInitialLoading(true);
+        if (showBigLoader) setInitialLoading(true);
         else setRefreshing(true);
 
         const url = buildApiUrl(`/chat/${myId}/${otherUserId}`);
@@ -224,13 +380,32 @@ export default function ChatScreenWeb() {
           },
         });
 
-        const data = await res.json().catch(() => []);
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(data?.message || "No se pudo cargar el historial.");
         }
 
-        const normalized = normalizeMessages(data, myId);
-        setMessages((prev) => mergeUniqueAndSort(prev, normalized));
+        const list = Array.isArray(data?.messages)
+          ? data.messages
+          : Array.isArray(data)
+            ? data
+            : [];
+
+        const normalized = normalizeMessages(list, myId);
+
+        setMessages((prev) => {
+          const merged = mergeUniqueAndSort(prev, normalized);
+
+          if (
+            merged.length > prev.length &&
+            serverBlock?.blocked &&
+            (serverBlock.code === "WAIT_CLIENT_START" || serverBlock.code === "CLIENT_INACTIVE")
+          ) {
+            setServerBlock({ blocked: false, code: "", message: "" });
+          }
+
+          return merged;
+        });
 
         setTimeout(() => {
           listRef.current?.scrollTo({
@@ -241,11 +416,11 @@ export default function ChatScreenWeb() {
       } catch (err) {
         console.error("[ChatScreenWeb] loadHistory error:", err);
       } finally {
-        if (mode === "initial") setInitialLoading(false);
+        if (showBigLoader) setInitialLoading(false);
         setRefreshing(false);
       }
     },
-    [chatReady, myId, otherUserId, token]
+    [chatReady, myId, otherUserId, token, messages.length, serverBlock]
   );
 
   useEffect(() => {
@@ -264,6 +439,7 @@ export default function ChatScreenWeb() {
 
   const sendMessage = useCallback(async () => {
     if (!chatReady) return;
+    if (timedOut) return;
 
     if (isSendBlockedByAvailability) {
       setPolicyError(t("chat_block_unavailable_short"));
@@ -291,6 +467,7 @@ export default function ChatScreenWeb() {
     }
 
     try {
+      onAnyChatActivity();
       setSending(true);
       setPolicyError("");
 
@@ -324,7 +501,7 @@ export default function ChatScreenWeb() {
             code: "NO_MINUTES",
             message: data?.message || t("chat_block_no_minutes_short"),
           });
-          await refreshMe();
+          await refreshMe?.();
           return;
         }
 
@@ -358,13 +535,13 @@ export default function ChatScreenWeb() {
         throw new Error(data?.message || t("chat_network_error_send"));
       }
 
-      const saved = data || {};
+      const saved = data?.message || data || {};
       const newMsg = {
         id: String(saved?._id || `${myId}-${Date.now()}`),
         text: saved?.text || content,
         senderId: String(myId),
         receiverId: String(otherUserId),
-        ts: toIso(saved?.createdAt || Date.now()),
+        ts: toIso(saved?.createdAt || saved?.timestamp || Date.now()),
         from: "me",
       };
 
@@ -386,6 +563,7 @@ export default function ChatScreenWeb() {
     }
   }, [
     chatReady,
+    timedOut,
     isSendBlockedByAvailability,
     isSendBlockedByMinutes,
     serverBlock,
@@ -395,11 +573,13 @@ export default function ChatScreenWeb() {
     token,
     refreshMe,
     t,
+    onAnyChatActivity,
   ]);
 
   const dataWithDayHeaders = useMemo(() => {
     const out = [];
     let lastDay = null;
+    const locale = getLocaleFromLang(lang);
 
     for (const m of messages) {
       const day = startOfDayMs(m?.ts);
@@ -407,7 +587,7 @@ export default function ChatScreenWeb() {
         out.push({
           type: "day",
           id: `day-${day}`,
-          label: formatDayHeader(day),
+          label: formatDayHeaderIntl(day, locale),
         });
         lastDay = day;
       }
@@ -419,9 +599,10 @@ export default function ChatScreenWeb() {
     }
 
     return out;
-  }, [messages]);
+  }, [messages, lang]);
 
   const uiBlocked =
+    timedOut ||
     sending ||
     isSendBlockedByAvailability ||
     isSendBlockedByMinutes ||
@@ -429,16 +610,12 @@ export default function ChatScreenWeb() {
 
   if (!chatReady) {
     return (
-      <AppLayoutWeb
-        title={t("chat_other_chat")}
-        showBack={true}
-        backTo="/home"
-      >
+      <AppLayoutWeb title={t("chat_other_chat")} showBack={true} backTo="/home">
         <div style={styles.contentArea}>
           <div style={styles.centerCard}>
             <h2 style={styles.centerTitle}>{t("chat_not_available_title")}</h2>
             <p style={styles.centerText}>
-              {t("chat_not_available_body", { missing: missingBits || "datos requeridos" })}
+              {tr("chat_not_available_body", { missing: missingBits || "datos requeridos" })}
             </p>
             <p style={styles.centerHint}>{t("chat_not_available_hint")}</p>
             <button style={styles.backBtnSoft} onClick={() => navigate("/home")}>
@@ -452,7 +629,7 @@ export default function ChatScreenWeb() {
 
   return (
     <AppLayoutWeb
-      title={t("chat_header_title", { name: otherUserName || t("chat_other_psychic") })}
+      title={tr("chat_header_title", { name: otherUserName || t("chat_other_psychic") })}
       showBack={true}
       backTo="/home"
       rightSlot={
@@ -467,34 +644,64 @@ export default function ChatScreenWeb() {
           <div style={styles.headerCenter}>
             <div style={styles.headerTitle}>{otherUserName}</div>
             <div style={styles.headerSubtitle}>
-              {otherUserAvailable
-                ? t("chat_other_psychic")
-                : t("chat_block_offline_psychic")}
+              {resolvedOtherAvailable === false
+                ? t("chat_block_offline_psychic")
+                : t("chat_other_psychic")}
             </div>
           </div>
         </div>
 
         {isSendBlockedByAvailability && (
-          <div style={styles.noticeBarWarning}>
-            {t("chat_block_unavailable")}
-          </div>
+          <div style={styles.noticeBarWarning}>{t("chat_block_unavailable")}</div>
         )}
 
         {isSendBlockedByMinutes && (
-          <div style={styles.noticeBarInfo}>
-            {t("chat_block_no_minutes")}
-          </div>
+          <div style={styles.noticeBarInfo}>{t("chat_block_no_minutes")}</div>
         )}
 
         {serverBlock?.blocked && !!serverBlock?.message && (
           <div style={styles.noticeBarPurple}>{serverBlock.message}</div>
         )}
 
+        {warningVisible && !timedOut && (
+          <div style={styles.noticeBarYellow}>{inactivityWarningText}</div>
+        )}
+
+        {timedOut && (
+          <div style={styles.timeoutBar}>
+            <div style={styles.timeoutText}>
+              {tr("chat_timeout_bar", {
+                msg: myRole === "cliente" ? t("chat_timeout_client_hint") : t("chat_timeout_other_hint"),
+              })}
+            </div>
+
+            {myRole === "cliente" && (
+              <button
+                type="button"
+                style={styles.resumeBtn}
+                onClick={() => {
+                  resetInactivity();
+                  startInactivityTick();
+                  setServerBlock({ blocked: false, code: "", message: "" });
+                }}
+              >
+                {t("chat_resume")}
+              </button>
+            )}
+          </div>
+        )}
+
         <div style={styles.chatWrap}>
           {initialLoading ? (
             <div style={styles.loadingBox}>{t("chat_loading_conversation")}</div>
           ) : (
-            <div ref={listRef} style={styles.messagesBox}>
+            <div
+              ref={listRef}
+              style={styles.messagesBox}
+              onScroll={onAnyChatActivity}
+              onMouseDown={onAnyChatActivity}
+              onTouchStart={onAnyChatActivity}
+            >
               {dataWithDayHeaders.map((item) => {
                 if (item.type === "day") {
                   return (
@@ -505,6 +712,7 @@ export default function ChatScreenWeb() {
                 }
 
                 const isMe = item.from === "me";
+                const locale = getLocaleFromLang(lang);
 
                 return (
                   <div
@@ -534,7 +742,7 @@ export default function ChatScreenWeb() {
                           ...(isMe ? styles.metaMe : styles.metaOther),
                         }}
                       >
-                        {formatTimeShort(item.ts)}
+                        {formatTimeShortIntl(item.ts, locale)}
                       </div>
                     </div>
                   </div>
@@ -546,7 +754,7 @@ export default function ChatScreenWeb() {
           {!!policyError && <div style={styles.policyBar}>{policyError}</div>}
 
           {refreshing && !initialLoading && (
-            <div style={styles.refreshPill}>{t("chat_loading_session")}</div>
+            <div style={styles.refreshPill}>{t("chat_refreshing") || t("chat_loading_session")}</div>
           )}
 
           <div style={styles.inputBar}>
@@ -555,7 +763,9 @@ export default function ChatScreenWeb() {
               onChange={(e) => {
                 setText(e.target.value);
                 setPolicyError("");
+                onAnyChatActivity();
               }}
+              onFocus={onAnyChatActivity}
               placeholder={
                 isSendBlockedByAvailability
                   ? t("chat_placeholder_unavailable")
@@ -565,7 +775,9 @@ export default function ChatScreenWeb() {
                       ? t("chat_placeholder_timeout")
                       : serverBlock?.blocked
                         ? t("chat_placeholder_paused")
-                        : t("chat_placeholder_write")
+                        : timedOut
+                          ? t("chat_placeholder_timeout")
+                          : t("chat_placeholder_write")
               }
               style={{
                 ...styles.input,
@@ -593,13 +805,8 @@ export default function ChatScreenWeb() {
 }
 
 const styles = {
-  content: {
-    padding: "0",
-  },
-
-  contentArea: {
-    padding: "0",
-  },
+  content: { padding: "0" },
+  contentArea: { padding: "0" },
 
   centerCard: {
     background: "#FFFFFF",
@@ -623,6 +830,13 @@ const styles = {
     lineHeight: 1.45,
   },
 
+  centerHint: {
+    margin: "0 0 16px 0",
+    color: "#777",
+    fontSize: "13px",
+    lineHeight: 1.45,
+  },
+
   headerCard: {
     display: "flex",
     alignItems: "flex-start",
@@ -634,10 +848,7 @@ const styles = {
     marginBottom: "10px",
   },
 
-  headerCenter: {
-    flex: 1,
-    minWidth: 0,
-  },
+  headerCenter: { flex: 1, minWidth: 0 },
 
   headerTitle: {
     color: "#311B92",
@@ -719,6 +930,43 @@ const styles = {
     borderBottom: "1px solid #E1BEE7",
     borderRadius: "12px",
     marginBottom: "10px",
+  },
+
+  noticeBarYellow: {
+    background: "#FFF8E1",
+    color: "#6D4C41",
+    padding: "10px 16px",
+    fontWeight: 700,
+    fontSize: "13px",
+    borderBottom: "1px solid #FFE082",
+    borderRadius: "12px",
+    marginBottom: "10px",
+  },
+
+  timeoutBar: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+    background: "#FCE4EC",
+    color: "#880E4F",
+    padding: "10px 16px",
+    fontWeight: 800,
+    fontSize: "13px",
+    borderBottom: "1px solid #F8BBD0",
+    borderRadius: "12px",
+    marginBottom: "10px",
+  },
+
+  timeoutText: { flex: 1 },
+
+  resumeBtn: {
+    border: "none",
+    background: "#7E57C2",
+    color: "#FFFFFF",
+    borderRadius: "999px",
+    padding: "8px 12px",
+    fontWeight: 800,
+    cursor: "pointer",
   },
 
   chatWrap: {

@@ -6,7 +6,6 @@ import { useAuthWeb } from '../context/AuthContextWeb';
 import { API_BASE_URL } from '../config/env.web.js';
 import AppLayoutWeb from '../components/layout/AppLayoutWeb.jsx';
 
-// fallback fijo si el backend no trae payoutPerMinuteUsd
 const DEFAULT_PSYCHIC_PAYOUT_PER_MINUTE_USD = 0.40;
 
 const RAW_API_URL = API_BASE_URL;
@@ -172,10 +171,17 @@ export default function CallHistoryWeb() {
         psychic: raw.otherUser || null,
 
         clientRating: raw.clientRating ?? null,
+        ratedAt: raw.ratedAt ?? null,
+        clientReview: raw.clientReview ?? '',
+        alreadyRated: raw.alreadyRated === true,
+        canRate: raw.canRate === true,
+        canComment: raw.canComment === true,
       };
     }
 
     if (raw?._id && raw?.psychic) {
+      const fallbackAlreadyRated = raw?.clientRating != null;
+
       return {
         ...raw,
         type: 'voice',
@@ -184,6 +190,9 @@ export default function CallHistoryWeb() {
         payoutPerMinuteUsd: raw?.payoutPerMinuteUsd ?? null,
         ratePerMinuteUsd: raw?.ratePerMinuteUsd ?? null,
         psychicEarningUsd: raw?.psychicEarningUsd ?? undefined,
+        alreadyRated: raw?.alreadyRated === true || fallbackAlreadyRated,
+        canRate: raw?.canRate === true,
+        canComment: raw?.canComment === true,
       };
     }
 
@@ -360,8 +369,20 @@ export default function CallHistoryWeb() {
         throw new Error(data?.message || t('callhist_err_rate_save'));
       }
 
-      setHistory((prev) => prev.map((c) => (c?._id === callId ? { ...c, clientRating: stars } : c)));
-      window.alert(t('callhist_rate_saved'));
+      setHistory((prev) =>
+        prev.map((c) =>
+          c?._id === callId
+            ? {
+                ...c,
+                clientRating: stars,
+                alreadyRated: true,
+                canRate: false,
+              }
+            : c
+        )
+      );
+
+      window.alert(`${t('callhist_thanks')}\n\n${t('callhist_rate_saved')}`);
     } catch (err) {
       console.log('[CallHistoryWeb] rateCall error:', err);
       window.alert(err?.message || t('callhist_err_rate_save'));
@@ -475,8 +496,12 @@ export default function CallHistoryWeb() {
 
     const isVoice = item?.type === 'voice';
     const currentRating = item?.clientRating;
-    const hasRating = Number.isFinite(Number(currentRating)) && Number(currentRating) >= 1;
-    const canRate = isVoice && status === 'finished' && !hasRating;
+
+    const hasRating =
+      item?.alreadyRated === true ||
+      (Number.isFinite(Number(currentRating)) && Number(currentRating) >= 1);
+
+    const canRate = item?.canRate === true;
     const busy = !!ratingBusyByCall[item?._id];
 
     const canShowEarningUsd =
@@ -533,13 +558,13 @@ export default function CallHistoryWeb() {
             }}
           >
             <div style={styles.rateLabel}>
-              {currentRating > 0
+              {hasRating
                 ? tr('callhist_rate_your_rating', { rating: currentRating })
                 : t('callhist_rate_prompt')}
             </div>
 
             <StarsRow
-              value={currentRating > 0 ? currentRating : 0}
+              value={hasRating ? currentRating : 0}
               disabled={!canRate || busy}
               onSelect={(stars) => {
                 if (!canRate) return;
@@ -557,7 +582,7 @@ export default function CallHistoryWeb() {
 
   const titleText = filterPsychicName
     ? `${t('callhist_title_with_name')}: ${filterPsychicName}`
-    : t('callhist_title_default');
+    : t('callhist_title_with_name');
 
   const visibleHistory = filterPsychicId ? filteredHistory : (Array.isArray(history) ? history : []);
 

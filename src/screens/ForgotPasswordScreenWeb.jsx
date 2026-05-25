@@ -10,6 +10,18 @@ export default function ForgotPasswordScreenWeb() {
   const navigate = useNavigate();
   const { t } = useLang();
 
+  const tt = useCallback(
+    (key, fallback) => {
+      try {
+        if (typeof t === "function") return t(key) ?? fallback;
+        return fallback;
+      } catch {
+        return fallback;
+      }
+    },
+    [t]
+  );
+
   const [emailOrPhone, setEmailOrPhone] = useState("");
   const [code, setCode] = useState("");
   const [newPass, setNewPass] = useState("");
@@ -66,13 +78,18 @@ export default function ForgotPasswordScreenWeb() {
 
   const requestCode = async () => {
     if (!emailOrPhone.trim()) {
-      setError(t("forgot_required_email_or_phone"));
+      setError(tt("forgot_required_email_or_phone", "Ingresa tu correo o teléfono."));
       setMessage("");
       return;
     }
 
     if (!isEmail && !isValidInternationalPhone(normalizedIdentifier)) {
-      setError(t("forgot_invalid_phone_body"));
+      setError(
+        tt(
+          "forgot_phone_format_body",
+          "Si usas teléfono, escríbelo en formato internacional. Ejemplo: +573001234567"
+        )
+      );
       setMessage("");
       return;
     }
@@ -94,7 +111,7 @@ export default function ForgotPasswordScreenWeb() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.message || t("forgot_error_send_code"));
+        throw new Error(data?.message || tt("forgot_error_send_code", "No se pudo enviar el código."));
       }
 
       resetStepTwoFields();
@@ -102,11 +119,14 @@ export default function ForgotPasswordScreenWeb() {
 
       setMessage(
         isEmail
-          ? t("forgot_done_body_email")
-          : t("forgot_done_body_sms")
+          ? tt("forgot_done_body_email", "Te enviamos un código a tu correo para restablecer tu contraseña.")
+          : tt(
+              "forgot_done_body_sms",
+              "Te enviamos un código por SMS para restablecer tu contraseña. Si no lo ves, revisa también spam o mensajes bloqueados."
+            )
       );
     } catch (e) {
-      setError(e?.message || t("forgot_error_send_code"));
+      setError(e?.message || tt("forgot_error_send_code", "No se pudo enviar el código."));
       setMessage("");
     } finally {
       setSending(false);
@@ -117,25 +137,30 @@ export default function ForgotPasswordScreenWeb() {
     const codeClean = String(code || "").replace(/\D+/g, "").trim();
 
     if (!codeClean) {
-      setError(t("forgot_required_code"));
+      setError(tt("forgot_required_code", "Ingresa el código recibido."));
       setMessage("");
       return;
     }
 
     if (!newPass || newPass.length < 6) {
-      setError(t("forgot_weak_password_body"));
+      setError(tt("forgot_weak_password_body", "La nueva contraseña debe tener al menos 6 caracteres."));
       setMessage("");
       return;
     }
 
     if (newPass !== newPass2) {
-      setError(t("forgot_not_match_body"));
+      setError(tt("forgot_not_match_body", "Las contraseñas no coinciden."));
       setMessage("");
       return;
     }
 
     if (!isEmail && !isValidInternationalPhone(normalizedIdentifier)) {
-      setError(t("forgot_invalid_phone_body"));
+      setError(
+        tt(
+          "forgot_phone_format_body",
+          "Si usas teléfono, escríbelo en formato internacional. Ejemplo: +573001234567"
+        )
+      );
       setMessage("");
       return;
     }
@@ -159,15 +184,16 @@ export default function ForgotPasswordScreenWeb() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.message || t("forgot_error_reset"));
+        throw new Error(data?.message || tt("forgot_error_reset", "No se pudo restablecer la contraseña."));
       }
 
-      setMessage(t("forgot_password_updated_body"));
+      setMessage(tt("forgot_password_updated_body", "Tu contraseña fue actualizada correctamente."));
+
       setTimeout(() => {
-        navigate("/", { replace: true });
+        navigate("/login", { replace: true });
       }, 1600);
     } catch (e) {
-      setError(e?.message || t("forgot_error_reset"));
+      setError(e?.message || tt("forgot_error_reset", "No se pudo restablecer la contraseña."));
       setMessage("");
     } finally {
       setResetting(false);
@@ -181,23 +207,26 @@ export default function ForgotPasswordScreenWeb() {
 
   return (
     <AppLayoutWeb
-      title={t("forgot_header_title")}
+      title={tt("forgot_header_title", "Recuperar contraseña")}
       showBack={true}
-      backTo="/"
+      backTo="/login"
     >
       <div style={styles.content}>
         <div style={styles.card}>
           <div style={styles.logoWrap}>
-            <img src={logoLp} alt={t("forgot_logo_alt")} style={styles.logoImg} />
+            <img src={logoLp} alt={tt("forgot_logo_alt", "Luz Psíquica")} style={styles.logoImg} />
           </div>
 
-          <h1 style={styles.title}>{t("forgot_title")}</h1>
-          <p style={styles.subtitle}>{t("forgot_subtitle")}</p>
+          <h1 style={styles.title}>{tt("forgot_title", "Recuperar contraseña")}</h1>
+          <p style={styles.subtitle}>{tt("forgot_subtitle", "")}</p>
 
-          <label style={styles.label}>{t("forgot_field_label_email_or_phone")}</label>
+          <label style={styles.label}>
+            {tt("forgot_field_label_email_or_phone", "Email o teléfono")}
+          </label>
+
           <input
             type="text"
-            placeholder={t("forgot_placeholder_email_or_phone")}
+            placeholder={tt("forgot_placeholder_email_or_phone", "Email o teléfono")}
             value={emailOrPhone}
             onChange={(e) => setEmailOrPhone(e.target.value)}
             style={styles.input}
@@ -205,7 +234,10 @@ export default function ForgotPasswordScreenWeb() {
           />
 
           <p style={styles.helperText}>
-            {t("login_phone_helper")}
+            {tt(
+              "login_phone_helper",
+              "Si usas teléfono, escríbelo en formato internacional. Ejemplo: +573001234567"
+            )}
           </p>
 
           {step === 1 && (
@@ -218,31 +250,39 @@ export default function ForgotPasswordScreenWeb() {
               onClick={requestCode}
               disabled={sending}
             >
-              {t("forgot_send_code")}
+              {sending
+                ? tt("forgot_sending_code", "Enviando...")
+                : tt("forgot_send_code", "Enviar código")}
             </button>
           )}
 
           {step === 2 && (
             <>
               <p style={styles.help}>
-                {isEmail ? t("forgot_step2_help_email") : t("forgot_step2_help_sms")}
+                {isEmail
+                  ? tt("forgot_step2_help_email", "Ingresa el código que recibiste por correo y tu nueva contraseña.")
+                  : tt(
+                      "forgot_step2_help_sms",
+                      "Ingresa el código que recibiste por SMS y tu nueva contraseña. Si no lo ves, revisa spam o mensajes bloqueados."
+                    )}
               </p>
 
-              <label style={styles.label}>{t("forgot_code_label")}</label>
+              <label style={styles.label}>{tt("forgot_code_label", "Código")}</label>
               <input
                 type="text"
-                placeholder={t("forgot_code_placeholder")}
+                inputMode="numeric"
+                placeholder={tt("forgot_code_placeholder", "Ingresa el código")}
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 style={styles.input}
                 disabled={sending || resetting}
               />
 
-              <label style={styles.label}>{t("forgot_new_password_label")}</label>
+              <label style={styles.label}>{tt("forgot_new_password_label", "Nueva contraseña")}</label>
               <div style={styles.passwordWrap}>
                 <input
                   type={showNewPass ? "text" : "password"}
-                  placeholder={t("forgot_new_password_placeholder")}
+                  placeholder={tt("forgot_new_password_placeholder", "Nueva contraseña")}
                   value={newPass}
                   onChange={(e) => setNewPass(e.target.value)}
                   style={styles.passwordInput}
@@ -255,24 +295,19 @@ export default function ForgotPasswordScreenWeb() {
                   disabled={sending || resetting}
                   aria-label={
                     showNewPass
-                      ? t("forgot_hide_password_a11y")
-                      : t("forgot_show_password_a11y")
-                  }
-                  title={
-                    showNewPass
-                      ? t("forgot_hide_password_a11y")
-                      : t("forgot_show_password_a11y")
+                      ? tt("forgot_hide_password_a11y", "Ocultar contraseña")
+                      : tt("forgot_show_password_a11y", "Mostrar contraseña")
                   }
                 >
                   {showNewPass ? "🙈" : "👁️"}
                 </button>
               </div>
 
-              <label style={styles.label}>{t("forgot_confirm_password_label")}</label>
+              <label style={styles.label}>{tt("forgot_confirm_password_label", "Confirmar contraseña")}</label>
               <div style={styles.passwordWrap}>
                 <input
                   type={showNewPass2 ? "text" : "password"}
-                  placeholder={t("forgot_confirm_password_placeholder")}
+                  placeholder={tt("forgot_confirm_password_placeholder", "Confirma la nueva contraseña")}
                   value={newPass2}
                   onChange={(e) => setNewPass2(e.target.value)}
                   style={styles.passwordInput}
@@ -285,13 +320,8 @@ export default function ForgotPasswordScreenWeb() {
                   disabled={sending || resetting}
                   aria-label={
                     showNewPass2
-                      ? t("forgot_hide_password_a11y")
-                      : t("forgot_show_password_a11y")
-                  }
-                  title={
-                    showNewPass2
-                      ? t("forgot_hide_password_a11y")
-                      : t("forgot_show_password_a11y")
+                      ? tt("forgot_hide_password_a11y", "Ocultar contraseña")
+                      : tt("forgot_show_password_a11y", "Mostrar contraseña")
                   }
                 >
                   {showNewPass2 ? "🙈" : "👁️"}
@@ -307,7 +337,9 @@ export default function ForgotPasswordScreenWeb() {
                 onClick={doReset}
                 disabled={resetting || sending}
               >
-                {resetting ? t("forgot_resetting_password") : t("forgot_change_password")}
+                {resetting
+                  ? tt("forgot_resetting_password", "Cambiando contraseña...")
+                  : tt("forgot_change_password", "Cambiar contraseña")}
               </button>
 
               <button
@@ -316,7 +348,7 @@ export default function ForgotPasswordScreenWeb() {
                 onClick={handleResendCode}
                 disabled={sending || resetting}
               >
-                {t("forgot_resend_code")}
+                {sending ? tt("forgot_sending_code", "Enviando...") : tt("forgot_resend_code", "Reenviar código")}
               </button>
             </>
           )}
@@ -327,10 +359,10 @@ export default function ForgotPasswordScreenWeb() {
           <button
             type="button"
             style={styles.linkBtn}
-            onClick={() => navigate("/", { replace: true })}
+            onClick={() => navigate("/login", { replace: true })}
             disabled={sending || resetting}
           >
-            {t("forgot_back_to_login")}
+            {tt("forgot_back_to_login", "Volver a iniciar sesión")}
           </button>
         </div>
       </div>
@@ -339,10 +371,7 @@ export default function ForgotPasswordScreenWeb() {
 }
 
 const styles = {
-  content: {
-    padding: "0",
-  },
-
+  content: { padding: "0" },
   card: {
     width: "100%",
     background: "#FFFFFF",
@@ -351,20 +380,17 @@ const styles = {
     boxShadow: "0 2px 8px rgba(60, 20, 110, 0.08)",
     boxSizing: "border-box",
   },
-
   logoWrap: {
     display: "flex",
     justifyContent: "center",
     marginBottom: "12px",
   },
-
   logoImg: {
     width: "52px",
     height: "52px",
     objectFit: "contain",
     display: "block",
   },
-
   title: {
     fontSize: "24px",
     margin: "0 0 6px 0",
@@ -373,7 +399,6 @@ const styles = {
     fontWeight: 700,
     lineHeight: 1.15,
   },
-
   subtitle: {
     margin: "0 0 18px 0",
     textAlign: "center",
@@ -381,7 +406,6 @@ const styles = {
     fontSize: "14px",
     lineHeight: 1.4,
   },
-
   label: {
     fontSize: "13px",
     fontWeight: 700,
@@ -390,7 +414,6 @@ const styles = {
     marginBottom: "6px",
     display: "block",
   },
-
   input: {
     padding: "12px 14px",
     width: "100%",
@@ -403,7 +426,6 @@ const styles = {
     boxSizing: "border-box",
     fontFamily: "inherit",
   },
-
   helperText: {
     marginTop: "6px",
     marginBottom: "4px",
@@ -411,7 +433,6 @@ const styles = {
     fontSize: "12px",
     lineHeight: 1.45,
   },
-
   help: {
     marginTop: "14px",
     marginBottom: "6px",
@@ -419,7 +440,6 @@ const styles = {
     lineHeight: 1.45,
     fontSize: "13px",
   },
-
   passwordWrap: {
     display: "flex",
     alignItems: "center",
@@ -428,7 +448,6 @@ const styles = {
     borderRadius: "12px",
     overflow: "hidden",
   },
-
   passwordInput: {
     flex: 1,
     padding: "12px 14px",
@@ -438,7 +457,6 @@ const styles = {
     fontFamily: "inherit",
     background: "transparent",
   },
-
   eyeBtn: {
     border: "none",
     background: "transparent",
@@ -447,7 +465,6 @@ const styles = {
     fontSize: "18px",
     height: "100%",
   },
-
   button: {
     padding: "13px 16px",
     width: "100%",
@@ -460,12 +477,10 @@ const styles = {
     fontSize: "14px",
     marginTop: "16px",
   },
-
   buttonDisabled: {
     opacity: 0.7,
     cursor: "not-allowed",
   },
-
   successBox: {
     background: "#E8F5E9",
     border: "1px solid #C8E6C9",
@@ -477,7 +492,6 @@ const styles = {
     lineHeight: 1.45,
     fontSize: "13px",
   },
-
   errorBox: {
     background: "#FFEBEE",
     border: "1px solid #FFCDD2",
@@ -489,7 +503,6 @@ const styles = {
     lineHeight: 1.45,
     fontSize: "13px",
   },
-
   linkBtn: {
     marginTop: "14px",
     width: "100%",
