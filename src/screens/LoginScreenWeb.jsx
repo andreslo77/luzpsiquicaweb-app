@@ -188,15 +188,6 @@ export default function LoginScreenWeb() {
           >
             {tt("login_client_register", "Client? Create account")}
           </button>
-
-          <button
-            type="button"
-            onClick={() => navigate("/psychic-register")}
-            style={styles.psychicLinkBtn}
-            disabled={busy || loading}
-          >
-            {tt("login_psychic_apply", "Psychic? Apply to work with us")}
-          </button>
         </div>
       </div>
     </AppLayoutWeb>
