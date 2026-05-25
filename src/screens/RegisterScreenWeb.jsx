@@ -263,18 +263,6 @@ export default function RegisterScreenWeb() {
             </button>
           </div>
 
-          <button
-            type="button"
-            style={styles.psychicLinkBtn}
-            onClick={() => navigate("/psychic-register")}
-            disabled={busy}
-          >
-            {tt(
-              "register_link_psychic_apply",
-              "¿Eres psíquico? Postúlate para trabajar con nosotros"
-            )}
-          </button>
-
           <div
             style={{
               ...styles.termsRow,
