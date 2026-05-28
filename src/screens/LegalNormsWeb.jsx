@@ -5,8 +5,8 @@ import { useNavigate } from "react-router-dom";
 import AppLayoutWeb from "../components/layout/AppLayoutWeb.jsx";
 import { useLang } from "../context/LanguageContext.jsx";
 
-const LEGAL_VERSION = "2026-04-24";
-const LEGAL_OWNER = "Claudia Loaiza";
+const LEGAL_VERSION = "2026-05-28";
+const LEGAL_OWNER = "Vortex GD / Equipo Luz Psíquica";
 const LEGAL_EMAIL = "luzpsiquica1@gmail.com";
 const WHATSAPP_NUMBER = "+18136187770";
 

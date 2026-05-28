@@ -6,8 +6,8 @@ import AppLayoutWeb from "../components/layout/AppLayoutWeb.jsx";
 import { useLang } from "../context/LanguageContext.jsx";
 
 const DOC_VERSION = "1.1";
-const DOC_DATE = "2026-01-07";
-const DOC_PLATFORM = "Aplicación web Luz Psíquica";
+const DOC_DATE = "2026-05-28";
+const DOC_PLATFORM = "Vortex GD / Equipo Luz Psíquica";
 
 export default function LegalOperationalWeb() {
   const navigate = useNavigate();

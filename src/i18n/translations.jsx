@@ -1140,7 +1140,7 @@ export const translations = {
       s11Body: "El uso de la plataforma implica la aceptación expresa de este Documento de\nFuncionamiento Operativo, así como de los demás documentos legales asociados.",
 
       s12Heading: "12. Información adicional",
-      s12Body: "Responsable del desarrollo tecnológico de la plataforma:\nAndrés Loaiza\nEl diseño, desarrollo técnico, arquitectura funcional y operación tecnológica de la plataforma Luz Psíquica han sido realizados bajo la dirección del responsable mencionado, en coordinación con los objetivos, principios éticos y lineamientos operativos de la plataforma.\nNota final\nEste documento se publica como parte del compromiso de Luz Psíquica con la transparencia, la ética tecnológica, la creatividad responsable y la claridad operativa."
+      s12Body: "Responsable del desarrollo tecnológico de la plataforma:\nVortex GD / Equipo Luz Psíquica\nEl diseño, desarrollo técnico, arquitectura funcional y operación tecnológica de la plataforma Luz Psíquica han sido realizados bajo la dirección del responsable mencionado, en coordinación con los objetivos, principios éticos y lineamientos operativos de la plataforma.\nNota final\nEste documento se publica como parte del compromiso de Luz Psíquica con la transparencia, la ética tecnológica, la creatividad responsable y la claridad operativa."
     }
   },
 
@@ -2269,7 +2269,7 @@ export const translations = {
       s11Body: "Using the platform implies express acceptance of this Operational Functioning Document,\nas well as the other associated legal documents.",
 
       s12Heading: "12. Additional information",
-      s12Body: "Person responsible for the technological development of the platform:\nAndrés Loaiza\nThe design, technical development, functional architecture, and technological operation of the Luz Psíquica platform have been carried out under the direction of the responsible person mentioned, in coordination with the platform’s objectives, ethical principles, and operational guidelines.\nFinal note\nThis document is published as part of Luz Psíquica’s commitment to transparency, technological ethics, responsible creativity, and operational clarity."
+      s12Body: "Person responsible for the technological development of the platform:\nVortex GD / Equipo Luz Psíquica\nThe design, technical development, functional architecture, and technological operation of the Luz Psíquica platform have been carried out under the direction of the responsible person mentioned, in coordination with the platform’s objectives, ethical principles, and operational guidelines.\nFinal note\nThis document is published as part of Luz Psíquica’s commitment to transparency, technological ethics, responsible creativity, and operational clarity."
     }
   },
 
@@ -3398,7 +3398,7 @@ export const translations = {
       s11Body: "L’utilisation de la plateforme implique l’acceptation expresse de ce Document de\nFonctionnement Opérationnel, ainsi que des autres documents juridiques associés.",
 
       s12Heading: "12. Informations supplémentaires",
-      s12Body: "Responsable du développement technologique de la plateforme :\nAndrés Loaiza\nLa conception, le développement technique, l’architecture fonctionnelle et l’exploitation technologique de la plateforme Luz Psíquica ont été réalisés sous la direction du responsable mentionné, en coordination avec les objectifs, principes éthiques et lignes directrices opérationnelles de la plateforme.\nNote finale\nCe document est publié dans le cadre de l’engagement de Luz Psíquica en faveur de la transparence, de l’éthique technologique, de la créativité responsable et de la clarté opérationnelle."
+      s12Body: "Responsable du développement technologique de la plateforme :\nVortex GD / Equipo Luz Psíquica\nLa conception, le développement technique, l’architecture fonctionnelle et l’exploitation technologique de la plateforme Luz Psíquica ont été réalisés sous la direction du responsable mentionné, en coordination avec les objectifs, principes éthiques et lignes directrices opérationnelles de la plateforme.\nNote finale\nCe document est publié dans le cadre de l’engagement de Luz Psíquica en faveur de la transparence, de l’éthique technologique, de la créativité responsable et de la clarté opérationnelle."
     }
   },
 
@@ -4527,7 +4527,7 @@ export const translations = {
       s11Body: "Die Nutzung der Plattform beinhaltet die ausdrückliche Annahme dieses Dokuments zum\noperativen Betrieb sowie der übrigen zugehörigen rechtlichen Dokumente.",
 
       s12Heading: "12. Zusätzliche Informationen",
-      s12Body: "Verantwortlich für die technologische Entwicklung der Plattform:\nAndrés Loaiza\nDesign, technische Entwicklung, funktionale Architektur und technologischer Betrieb der Plattform Luz Psíquica wurden unter der Leitung der genannten verantwortlichen Person in Abstimmung mit den Zielen, ethischen Grundsätzen und operativen Leitlinien der Plattform durchgeführt.\nSchlusshinweis\nDieses Dokument wird im Rahmen des Engagements von Luz Psíquica für Transparenz, technologische Ethik, verantwortungsvolle Kreativität und operative Klarheit veröffentlicht."
+      s12Body: "Verantwortlich für die technologische Entwicklung der Plattform:\nVortex GD / Equipo Luz Psíquica\nDesign, technische Entwicklung, funktionale Architektur und technologischer Betrieb der Plattform Luz Psíquica wurden unter der Leitung der genannten verantwortlichen Person in Abstimmung mit den Zielen, ethischen Grundsätzen und operativen Leitlinien der Plattform durchgeführt.\nSchlusshinweis\nDieses Dokument wird im Rahmen des Engagements von Luz Psíquica für Transparenz, technologische Ethik, verantwortungsvolle Kreativität und operative Klarheit veröffentlicht."
     }
   },
 
@@ -5674,7 +5674,7 @@ export const translations = {
       s11Body: "O uso da plataforma implica a aceitação expressa deste Documento de\nFuncionamento Operacional, bem como dos demais documentos legais associados.",
 
       s12Heading: "12. Informações adicionais",
-      s12Body: "Responsável pelo desenvolvimento tecnológico da plataforma:\nAndrés Loaiza\nO design, o desenvolvimento técnico, a arquitetura funcional e a operação tecnológica da plataforma Luz Psíquica foram realizados sob a direção do responsável mencionado, em coordenação com os objetivos, princípios éticos e diretrizes operacionais da plataforma.\nNota final\nEste documento é publicado como parte do compromisso da Luz Psíquica com a transparência, a ética tecnológica, a criatividade responsável e a clareza operacional."
+      s12Body: "Responsável pelo desenvolvimento tecnológico da plataforma:\nVortex GD / Equipo Luz Psíquica\nO design, o desenvolvimento técnico, a arquitetura funcional e a operação tecnológica da plataforma Luz Psíquica foram realizados sob a direção do responsável mencionado, em coordenação com os objetivos, princípios éticos e diretrizes operacionais da plataforma.\nNota final\nEste documento é publicado como parte do compromisso da Luz Psíquica com a transparência, a ética tecnológica, a criatividade responsável e a clareza operacional."
     }
   },
 
@@ -6803,7 +6803,7 @@ export const translations = {
       s11Body: "L’uso della piattaforma implica l’accettazione espressa di questo Documento di\nFunzionamento Operativo, nonché degli altri documenti legali associati.",
 
       s12Heading: "12. Informazioni aggiuntive",
-      s12Body: "Responsabile dello sviluppo tecnologico della piattaforma:\nAndrés Loaiza\nLa progettazione, lo sviluppo tecnico, l’architettura funzionale e l’operatività tecnologica della piattaforma Luz Psíquica sono stati realizzati sotto la direzione del responsabile menzionato, in coordinamento con gli obiettivi, i principi etici e le linee guida operative della piattaforma.\nNota finale\nQuesto documento viene pubblicato come parte dell’impegno di Luz Psíquica verso la trasparenza, l’etica tecnologica, la creatività responsabile e la chiarezza operativa."
+      s12Body: "Responsabile dello sviluppo tecnologico della piattaforma:\nVortex GD / Equipo Luz Psíquica\nLa progettazione, lo sviluppo tecnico, l’architettura funzionale e l’operatività tecnologica della piattaforma Luz Psíquica sono stati realizzati sotto la direzione del responsabile menzionato, in coordinamento con gli obiettivi, i principi etici e le linee guida operative della piattaforma.\nNota finale\nQuesto documento viene pubblicato come parte dell’impegno di Luz Psíquica verso la trasparenza, l’etica tecnologica, la creatività responsabile e la chiarezza operativa."
     }
   },
 };

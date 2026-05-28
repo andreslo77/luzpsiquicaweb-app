@@ -307,8 +307,8 @@ export default function ChatScreenWeb() {
 
     tickRef.current = setInterval(() => {
       const elapsed = Date.now() - inactivityStartRef.current;
-      const totalMs = 60_000;
-      const warningMs = 30_000;
+      const totalMs = 5 * 60 * 1000;
+      const warningMs = 30 * 1000;
 
       if (elapsed >= totalMs) {
         setTimedOut(true);
